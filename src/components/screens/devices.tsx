@@ -367,7 +367,11 @@ function NetworkChoiceScreen({
       <p className="mt-4 text-[15px] leading-7 text-[#333]">
         设备支持的网络连接协议信息，例如 Wi-Fi、蓝牙、Zigbee 等，通常可以在包装盒、产品说明书、设备铭牌上找到相关信息，可参考下图。若仍未找到也可咨询商家。
       </p>
-      <NetworkGuideArt />
+      <img
+        src="/network-guide.png"
+        alt="包装盒与说明书上的网络连接信息"
+        className="mt-4 w-full rounded-lg"
+      />
       <p className="mt-4 text-[15px] leading-7">确认设备支持的网络协议信息后，请选择对应类型尝试连网。</p>
       <p className="mt-5 text-[16px] font-medium">选择配网方式：</p>
       <div className="mt-3 grid gap-3">
@@ -385,28 +389,6 @@ function NetworkChoiceScreen({
         </button>
       </div>
     </div>
-  );
-}
-
-function NetworkGuideArt() {
-  return (
-    <svg viewBox="0 0 320 150" className="mt-4 h-auto w-full rounded-xl" aria-hidden>
-      <rect width="320" height="150" rx="8" fill="#C9A27A" />
-      <rect x="18" y="28" width="118" height="96" rx="4" fill="#F7F7F5" />
-      <text x="30" y="48" fill="#666" fontSize="8">Connectivity</text>
-      <circle cx="34" cy="64" r="4" fill="#2F7BFF" />
-      <text x="44" y="67" fill="#333" fontSize="9">Wi-Fi</text>
-      <circle cx="34" cy="82" r="4" fill="#2F7BFF" />
-      <text x="44" y="85" fill="#333" fontSize="9">Bluetooth</text>
-      <circle cx="34" cy="100" r="4" fill="#2F7BFF" />
-      <text x="44" y="103" fill="#333" fontSize="9">2.4GHz</text>
-      <rect x="150" y="22" width="132" height="108" rx="3" fill="#FFF" />
-      <text x="162" y="40" fill="#222" fontSize="9">Network Capability</text>
-      <text x="162" y="58" fill="#444" fontSize="8">• Wi-Fi</text>
-      <text x="162" y="72" fill="#444" fontSize="8">• Bluetooth</text>
-      <text x="162" y="86" fill="#444" fontSize="8">• 2.4GHz Wi-Fi</text>
-      <text x="162" y="100" fill="#444" fontSize="8">• 5GHz Wi-Fi</text>
-    </svg>
   );
 }
 
