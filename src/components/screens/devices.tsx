@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { AudioLines, Bot, Cat, Dog, KeyRound, Lamp, LockKeyhole, Search, type LucideIcon } from "lucide-react";
 import {
   ConfirmDialog,
   DeviceGlyph,
@@ -98,6 +98,15 @@ export function AddDeviceScreen() {
   );
 }
 
+const PRODUCT_MARKS: Record<string, { icon: LucideIcon; bg: string; fg: string }> = {
+  c1: { icon: Bot, bg: "#E8F1FF", fg: "#3B82F6" },
+  c2: { icon: Lamp, bg: "#FFF4D6", fg: "#D39A00" },
+  p1: { icon: Cat, bg: "#F3E8FF", fg: "#8B5CF6" },
+  p2: { icon: Dog, bg: "#E7F8EE", fg: "#22A35A" },
+  "l-auto": { icon: LockKeyhole, bg: "#FFF1EA", fg: "#FF581C" },
+  "l-semi": { icon: KeyRound, bg: "#E7F6F5", fg: "#0F9B94" },
+};
+
 function ProductGrid({
   products,
   onOpen,
@@ -107,17 +116,26 @@ function ProductGrid({
 }) {
   return (
     <div className="grid grid-cols-2 gap-3">
-      {products.map((product) => (
-        <button
-          key={product.id}
-          type="button"
-          onClick={() => onOpen(product.id)}
-          className="rounded-2xl bg-[#F7F8FA] px-3 py-4 text-left"
-        >
-          <span className="block size-12 rounded-xl bg-[#F3F4F6]" />
-          <span className="mt-3 block text-[14px] font-medium">{product.name}</span>
-        </button>
-      ))}
+      {products.map((product) => {
+        const mark = PRODUCT_MARKS[product.id] ?? { icon: AudioLines, bg: "#F3F4F6", fg: "#888" };
+        const Icon = mark.icon;
+        return (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => onOpen(product.id)}
+            className="rounded-2xl bg-[#F7F8FA] px-3 py-4 text-left"
+          >
+            <span
+              className="grid size-12 place-items-center rounded-2xl"
+              style={{ background: mark.bg, color: mark.fg }}
+            >
+              <Icon className="size-6" strokeWidth={1.8} />
+            </span>
+            <span className="mt-3 block text-[14px] font-medium">{product.name}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
