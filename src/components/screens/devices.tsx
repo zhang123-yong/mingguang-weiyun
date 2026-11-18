@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AudioLines, Bluetooth, Bot, Cat, Dog, Lamp, Search, Wifi, type LucideIcon } from "lucide-react";
+import { AudioLines, Bluetooth, Bot, Cat, Check, Dog, Lamp, Search, Wifi, type LucideIcon } from "lucide-react";
 import {
   ConfirmDialog,
   DeviceGlyph,
@@ -161,8 +161,12 @@ export function PairScreen({ productId }: { productId: string }) {
   const { data, addDevice } = useApp();
   const { pop, push, reset, notify } = useNav();
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
+  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "wifi-pass" | "wifi-pick" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
   const [bluetoothReady, setBluetoothReady] = useState(false);
+  const [phoneWifi, setPhoneWifi] = useState({ connected: false, ssid: "", band: "" });
+  const [wifiPassword, setWifiPassword] = useState("");
+  const [wifiAlert, setWifiAlert] = useState(false);
+  const [pickFrom, setPickFrom] = useState<"pass" | "alert">("pass");
   const [deviceName, setDeviceName] = useState(product?.name ?? "");
   const [roomId, setRoomId] = useState(home.rooms[0]?.id ?? "");
 
@@ -218,7 +222,58 @@ export function PairScreen({ productId }: { productId: string }) {
   if (product.category === "lock" && step === "wifi") {
     return (
       <LockWifiScreen
-        onClose={() => setStep("choose")}
+        alert={wifiAlert}
+        onClose={() => {
+          setWifiAlert(false);
+          setStep("choose");
+        }}
+        onNext={() => {
+          if (phoneWifi.connected && phoneWifi.ssid) setStep("wifi-pass");
+          else setWifiAlert(true);
+        }}
+        onContinue={() => {
+          setWifiAlert(false);
+          setStep("wifi-pass");
+        }}
+        onConnect={() => {
+          setPickFrom("alert");
+          setWifiAlert(false);
+          setStep("wifi-pick");
+        }}
+      />
+    );
+  }
+
+  if (product.category === "lock" && step === "wifi-pick") {
+    return (
+      <WifiPickScreen
+        current={phoneWifi.ssid}
+        onBack={() => {
+          if (pickFrom === "alert" && !phoneWifi.connected) {
+            setWifiAlert(true);
+            setStep("wifi");
+          } else setStep("wifi-pass");
+        }}
+        onSelect={(network) => {
+          setPhoneWifi({ connected: true, ssid: network.ssid, band: network.band });
+          setStep("wifi-pass");
+        }}
+      />
+    );
+  }
+
+  if (product.category === "lock" && step === "wifi-pass") {
+    return (
+      <WifiPasswordScreen
+        ssid={phoneWifi.ssid}
+        band={phoneWifi.band}
+        password={wifiPassword}
+        onPassword={setWifiPassword}
+        onClose={() => setStep("wifi")}
+        onPick={() => {
+          setPickFrom("pass");
+          setStep("wifi-pick");
+        }}
         onNext={() => setStep("search")}
       />
     );
@@ -392,16 +447,29 @@ function NetworkChoiceScreen({
   );
 }
 
+const WIFI_NETWORKS = [
+  { ssid: "MGYF", band: "2.4GHz" },
+  { ssid: "MGYF-5G", band: "5GHz" },
+  { ssid: "MINGGUANG", band: "2.4GHz" },
+  { ssid: "CMCC-2.4G", band: "2.4GHz" },
+];
+
 function LockWifiScreen({
+  alert,
   onClose,
   onNext,
+  onContinue,
+  onConnect,
 }: {
+  alert: boolean;
   onClose: () => void;
   onNext: () => void;
+  onContinue: () => void;
+  onConnect: () => void;
 }) {
   const [showReset, setShowReset] = useState(false);
   return (
-    <div className="flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
+    <div className="relative flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
       <div className="flex items-center justify-between">
         <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
           ×
@@ -422,6 +490,125 @@ function LockWifiScreen({
       <button type="button" onClick={() => setShowReset((value) => !value)} className="mt-4 text-center text-[15px] text-[#2F7BFF]">
         按步骤重置设备
       </button>
+      {alert ? (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 px-8">
+          <div role="dialog" aria-labelledby="wifi-alert-title" className="w-full max-w-[300px] overflow-hidden rounded-2xl bg-white">
+            <h2 id="wifi-alert-title" className="pt-5 text-center text-[17px] font-semibold">提醒</h2>
+            <p className="px-5 pb-5 pt-3 text-center text-[14px] leading-6 text-[#666]">
+              当前手机未连接路由器，无法完成添加，请连接路由器后添加
+            </p>
+            <div className="grid grid-cols-2 border-t border-[#E8E8E8]">
+              <button type="button" onClick={onContinue} className="h-12 border-r border-[#E8E8E8] text-[16px] text-[#333]">
+                仍然继续
+              </button>
+              <button type="button" onClick={onConnect} className="h-12 text-[16px] font-medium text-[#222]">
+                去连接
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WifiPasswordScreen({
+  ssid,
+  band,
+  password,
+  onPassword,
+  onClose,
+  onPick,
+  onNext,
+}: {
+  ssid: string;
+  band: string;
+  password: string;
+  onPassword: (value: string) => void;
+  onClose: () => void;
+  onPick: () => void;
+  onNext: () => void;
+}) {
+  const ready = Boolean(ssid && password.trim());
+  return (
+    <div className="flex h-full flex-col bg-white px-6 pt-3 text-[#222]">
+      <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center self-start text-[22px] leading-none">
+        ×
+      </button>
+      <h1 className="mt-14 text-center text-[22px] font-semibold">输入家庭 Wi-Fi 密码</h1>
+      <p className="mt-3 text-center text-[13px] leading-6 text-[#A3A3A3]">
+        请根据说明书确认设备频段，若不支持 5 Ghz，请选择
+        <br />
+        2.4 Ghz
+      </p>
+      <div className="mt-12 flex items-center justify-between border-b border-[#E6E6E6] py-3.5">
+        <span className={`text-[16px] ${ssid ? "text-[#222]" : "text-[#C8C8C8]"}`}>{ssid || "未连接"}</span>
+        <button type="button" onClick={onPick} className="text-[15px] text-[#2F7BFF]">
+          选择 Wi-Fi
+        </button>
+      </div>
+      <input
+        type="password"
+        value={password}
+        autoComplete="off"
+        placeholder="密码"
+        onChange={(event) => onPassword(event.target.value)}
+        className="border-b border-[#E6E6E6] py-3.5 text-[16px] outline-none placeholder:text-[#C8C8C8]"
+      />
+      {band === "5GHz" ? (
+        <p className="mt-3 text-[12px] leading-5 text-[#E23B3B]">当前是 5GHz，设备若不支持请改选 2.4GHz。</p>
+      ) : null}
+      <button
+        type="button"
+        disabled={!ready}
+        onClick={onNext}
+        className={`mt-8 h-12 w-full rounded-[10px] text-[16px] text-white ${ready ? "bg-[#FF581C]" : "bg-[#F6D0C6]"}`}
+      >
+        下一步
+      </button>
+    </div>
+  );
+}
+
+function WifiPickScreen({
+  current,
+  onBack,
+  onSelect,
+}: {
+  current: string;
+  onBack: () => void;
+  onSelect: (network: { ssid: string; band: string }) => void;
+}) {
+  return (
+    <div className="flex h-full flex-col bg-white text-[#222]">
+      <div className="flex h-12 items-center px-2">
+        <button type="button" aria-label="返回" onClick={onBack} className="grid size-9 place-items-center text-[22px] leading-none">
+          ‹
+        </button>
+        <h1 className="flex-1 pr-9 text-center text-[17px] font-medium">选择 Wi-Fi</h1>
+      </div>
+      <p className="px-5 pb-2 text-[13px] leading-5 text-[#999]">设备若不支持 5GHz，请选择 2.4GHz</p>
+      <ul>
+        {WIFI_NETWORKS.map((network) => {
+          const selected = network.ssid === current;
+          return (
+            <li key={network.ssid}>
+              <button
+                type="button"
+                onClick={() => onSelect(network)}
+                className="flex w-full items-center gap-3 border-b border-[#F0F0F0] px-5 py-4 text-left"
+              >
+                <Wifi className="size-5 shrink-0 text-[#666]" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px]">{network.ssid}</span>
+                  <span className="text-[12px] text-[#999]">{network.band}</span>
+                </span>
+                {selected ? <Check className="size-5 text-[#FF581C]" /> : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
