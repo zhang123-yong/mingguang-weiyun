@@ -36,12 +36,10 @@ export function AddDeviceScreen() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const categories = CATEGORIES.filter((item) => item.name !== "智能门");
+  const categories = CATEGORIES.filter((item) => item.id === "companion" || item.id === "pet" || item.id === "lock");
   const products = PRODUCTS.filter(
     (product) =>
       product.category === category &&
-      product.name !== "智能门" &&
-      product.name !== "可视门锁" &&
       (query.trim() === "" || product.name.includes(query.trim())),
   );
 
@@ -74,13 +72,13 @@ export function AddDeviceScreen() {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 border-t border-[#F0F0F0] bg-white">
-        <aside className="w-[88px] shrink-0 bg-[#F7F8FA]">
+        <aside className="w-[104px] shrink-0 bg-[#F7F8FA]">
           {categories.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setCategory(item.id)}
-              className={`block w-full px-3 py-4 text-left text-[13px] ${
+              className={`block w-full whitespace-nowrap px-3 py-4 text-left text-[13px] ${
                 category === item.id ? "bg-white font-semibold text-[#222]" : "text-[#666]"
               }`}
             >
