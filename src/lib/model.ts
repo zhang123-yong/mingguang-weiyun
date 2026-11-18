@@ -136,9 +136,10 @@ export const PRODUCTS: Product[] = [
   {
     id: "l-door",
     category: "lock",
-    name: "门锁",
+    lockKind: "auto",
+    name: "可视智能门锁",
     model: "MG-L1",
-    blurb: "智能门锁",
+    blurb: "带摄像头的智能门锁",
   },
 ];
 

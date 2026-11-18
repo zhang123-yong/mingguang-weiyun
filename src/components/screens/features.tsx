@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight, Mic } from "lucide-react";
 import { Group, Page, PrimaryButton, TextInput } from "@/components/chrome";
 import { useApp } from "@/lib/app-state";
@@ -403,5 +403,150 @@ export function WebAiScreen() {
         <PrimaryButton onClick={() => notify("网页版地址会在服务接入后打开")}>打开网页版</PrimaryButton>
       </div>
     </Page>
+  );
+}
+
+type CastTarget = { id: string; name: string; place: string; online: boolean };
+
+export function CastScreen() {
+  const { data } = useApp();
+  const { pop, notify } = useNav();
+  const [step, setStep] = useState<"intro" | "search" | "list" | "link" | "live">("intro");
+  const [target, setTarget] = useState<CastTarget | null>(null);
+
+  const receivers: CastTarget[] = [
+    ...data.devices
+      .filter((device) => device.homeId === data.currentHomeId && device.kind === "companion")
+      .map((device) => ({
+        id: device.id,
+        name: device.name,
+        place: data.homes.find((home) => home.id === device.homeId)?.rooms.find((room) => room.id === device.roomId)?.name ?? "家中",
+        online: device.on,
+      })),
+    { id: "tv-living", name: "客厅电视", place: "客厅", online: true },
+    { id: "tv-bed", name: "卧室投影", place: "主卧", online: false },
+  ];
+
+  useEffect(() => {
+    if (step !== "search") return;
+    const timer = window.setTimeout(() => setStep("list"), 1200);
+    return () => window.clearTimeout(timer);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "link" || !target) return;
+    const timer = window.setTimeout(() => setStep("live"), 900);
+    return () => window.clearTimeout(timer);
+  }, [step, target]);
+
+  function choose(item: CastTarget) {
+    if (!item.online) {
+      notify(`${item.name}不在线，请先开机并连上家里的 Wi-Fi`);
+      return;
+    }
+    setTarget(item);
+    setStep("link");
+  }
+
+  return (
+    <Page title="手机投屏" onBack={pop}>
+      {step === "intro" ? (
+        <div className="flex flex-col items-center pt-6 text-center">
+          <CastArt />
+          <p className="mt-6 text-[18px] font-medium">把手机画面投到家里的屏幕</p>
+          <ol className="mt-4 space-y-2 text-left text-[14px] leading-6 text-[#555]">
+            <li>1. 手机连上家里的 Wi-Fi，当前是 MGYF · 2.4GHz</li>
+            <li>2. 打开电视、投影或名光陪伴设备</li>
+            <li>3. 选择一台设备，开始投屏</li>
+          </ol>
+          <div className="mt-8 w-full">
+            <PrimaryButton onClick={() => setStep("search")}>搜索可投屏设备</PrimaryButton>
+          </div>
+        </div>
+      ) : null}
+
+      {step === "search" ? (
+        <div className="flex flex-col items-center pt-16">
+          <div className="size-24 animate-pulse rounded-full border-4 border-[#E4D7FF] border-t-[#7C3AED]" />
+          <p className="mt-6 text-[16px]">正在搜索同一 Wi-Fi 下的设备</p>
+          <p className="mt-2 text-[13px] text-[#999]">请让手机和接收设备连着 MGYF</p>
+        </div>
+      ) : null}
+
+      {step === "list" ? (
+        <div>
+          <p className="text-[14px] text-[#666]">找到 {receivers.length} 台可接收投屏的设备</p>
+          <div className="mt-3 overflow-hidden rounded-2xl bg-white">
+            {receivers.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => choose(item)}
+                className="flex w-full items-center gap-3 border-b border-[#F4F4F4] px-4 py-4 text-left last:border-b-0"
+              >
+                <span className="grid size-10 place-items-center rounded-xl bg-[#F3E8FF] text-[13px] text-[#7C3AED]">投</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px]">{item.name}</span>
+                  <span className="mt-0.5 block text-[12px] text-[#999]">{item.place}</span>
+                </span>
+                <span className={item.online ? "text-[13px] text-[#178A45]" : "text-[13px] text-[#999]"}>
+                  {item.online ? "可连接" : "离线"}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button type="button" className="mt-4 h-11 w-full text-[14px] text-[#666]" onClick={() => setStep("search")}>
+            重新搜索
+          </button>
+        </div>
+      ) : null}
+
+      {step === "link" && target ? (
+        <div className="flex flex-col items-center pt-16 text-center">
+          <div className="size-24 animate-pulse rounded-full border-4 border-[#FDECEA] border-t-[#FF581C]" />
+          <p className="mt-6 text-[16px]">正在连接{target.name}</p>
+          <p className="mt-2 text-[13px] text-[#999]">手机会把当前画面发送到这台设备</p>
+        </div>
+      ) : null}
+
+      {step === "live" && target ? (
+        <div className="flex flex-col items-center pt-4 text-center">
+          <p className="text-[13px] text-[#178A45]">投屏中</p>
+          <p className="mt-1 text-[20px] font-medium">{target.name}</p>
+          <p className="mt-1 text-[13px] text-[#888]">{target.place} · MGYF</p>
+          <div className="mt-6 w-[180px] rounded-[28px] border-4 border-[#222] bg-[#111] px-3 py-4 text-white shadow-lg">
+            <p className="text-[12px] text-white/70">手机画面</p>
+            <p className="mt-6 text-[15px]">名光智能</p>
+            <p className="mt-2 text-[12px] text-white/60">正在投到{target.name}</p>
+            <div className="mx-auto mt-6 h-1.5 w-16 rounded-full bg-white/30" />
+          </div>
+          <div className="mt-8 w-full">
+            <PrimaryButton
+              onClick={() => {
+                notify(`已断开${target.name}`);
+                setStep("list");
+              }}
+            >
+              结束投屏
+            </PrimaryButton>
+          </div>
+        </div>
+      ) : null}
+    </Page>
+  );
+}
+
+function CastArt() {
+  return (
+    <svg viewBox="0 0 220 120" className="h-28 w-56" aria-hidden>
+      <rect x="8" y="18" width="120" height="78" rx="10" fill="#1C1C1C" />
+      <rect x="18" y="28" width="100" height="52" rx="4" fill="#7C3AED" />
+      <text x="68" y="58" textAnchor="middle" fill="white" fontSize="12">手机</text>
+      <rect x="138" y="10" width="74" height="96" rx="8" fill="#F3E8FF" stroke="#7C3AED" />
+      <rect x="146" y="20" width="58" height="70" rx="4" fill="white" />
+      <text x="175" y="58" textAnchor="middle" fill="#7C3AED" fontSize="11">屏幕</text>
+      <path d="M128 56h12" stroke="#FF581C" strokeWidth="2" />
+      <path d="M136 51l6 5-6 5" fill="none" stroke="#FF581C" strokeWidth="2" />
+    </svg>
   );
 }

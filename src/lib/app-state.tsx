@@ -242,7 +242,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             ? [{ id: rid(), name: "管理员", method: "指纹" }]
             : [],
         tempCodes: [],
-        logs: [{ id: rid(), text: "设备添加成功", time: nowLabel() }],
+        logs:
+          product.category === "lock"
+            ? [
+                { id: rid(), text: "远程解锁", time: nowLabel() },
+                { id: rid(), text: "设备添加成功", time: nowLabel() },
+              ]
+            : [{ id: rid(), text: "设备添加成功", time: nowLabel() }],
       };
       update((current) => ({ ...current, devices: [device, ...current.devices] }));
       return id;

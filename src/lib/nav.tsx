@@ -19,6 +19,10 @@ export type Route =
   | { name: "device-logs"; id: string }
   | { name: "lock-users"; id: string }
   | { name: "temp-pass"; id: string }
+  | { name: "lock-video"; id: string }
+  | { name: "lock-ai"; id: string }
+  | { name: "lock-link"; id: string }
+  | { name: "lock-notices"; id: string }
   | { name: "group-edit"; deviceId?: string }
   | { name: "group"; id: string }
   | { name: "scene-edit"; kind: "tap" | "auto"; id?: string; initialName?: string; initialWhen?: string }
@@ -53,7 +57,8 @@ export type Route =
   | { name: "voice" }
   | { name: "voice-bind"; service: string }
   | { name: "weather" }
-  | { name: "feedback" };
+  | { name: "feedback" }
+  | { name: "cast" };
 
 export type NavValue = {
   tab: TabId;

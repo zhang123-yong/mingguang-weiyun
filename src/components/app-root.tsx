@@ -12,7 +12,11 @@ import {
   DeviceShareScreen,
   GroupEditScreen,
   GroupScreen,
+  LockAiScreen,
+  LockLinkScreen,
+  LockNoticesScreen,
   LockUsersScreen,
+  LockVideoScreen,
   PairScreen,
   TempPassScreen,
 } from "@/components/screens/devices";
@@ -51,6 +55,7 @@ import {
   TemplateScreen,
   TranslateScreen,
   WebAiScreen,
+  CastScreen,
 } from "@/components/screens/features";
 import { SceneEditor, SceneScreen } from "@/components/screens/scenes";
 import { AppStateProvider, useApp } from "@/lib/app-state";
@@ -168,6 +173,14 @@ function Screen({
       return <LockUsersScreen id={route.id} />;
     case "temp-pass":
       return <TempPassScreen id={route.id} />;
+    case "lock-video":
+      return <LockVideoScreen id={route.id} />;
+    case "lock-ai":
+      return <LockAiScreen id={route.id} />;
+    case "lock-link":
+      return <LockLinkScreen id={route.id} />;
+    case "lock-notices":
+      return <LockNoticesScreen id={route.id} />;
     case "group-edit":
       return <GroupEditScreen deviceId={route.deviceId} />;
     case "group":
@@ -238,6 +251,8 @@ function Screen({
       return <WeatherScreen />;
     case "feedback":
       return <FeedbackScreen />;
+    case "cast":
+      return <CastScreen />;
     default:
       return null;
   }

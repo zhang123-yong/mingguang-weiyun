@@ -1,7 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AudioLines, Bluetooth, Bot, Cat, Check, Dog, Lamp, Search, Wifi, type LucideIcon } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  AudioLines,
+  BatteryMedium,
+  Bell,
+  Bluetooth,
+  Bot,
+  Cat,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Dog,
+  Grid3x3,
+  Lamp,
+  List,
+  Lock,
+  Pencil,
+  Search,
+  Settings,
+  ToggleRight,
+  UserRound,
+  Video,
+  Wifi,
+  type LucideIcon,
+} from "lucide-react";
 import {
   ConfirmDialog,
   DeviceGlyph,
@@ -1080,6 +1103,12 @@ function useDevice(id: string) {
   return data.devices.find((device) => device.id === id);
 }
 
+const LOCK_NOTICES = [
+  { title: "通知", body: "本地录像会丢？云存永久存", count: 2 },
+  { title: "告警", body: "门口有人停留超过 10 秒", count: 1 },
+  { title: "录像", body: "今天 18:02 有一段门口录像", count: 1 },
+];
+
 export function DeviceScreen({ id }: { id: string }) {
   const device = useDevice(id);
   const { patchDevice, pushLog } = useApp();
@@ -1088,20 +1117,11 @@ export function DeviceScreen({ id }: { id: string }) {
 
   if (!device) return <Page title="设备" onBack={pop}><p>设备已移除。</p></Page>;
 
-  const homeName = device.kind === "lock"
-    ? device.locked ? "已上锁" : "已开锁"
-    : device.on ? "在线" : "已关闭";
-
-  function setLocked(locked: boolean) {
-    if (device!.lockKind === "semi" && locked) {
-      pushLog(device!.id, "半自动锁需要在门内手动上锁");
-      notify("半自动锁需要在门内提把手上锁");
-      return;
-    }
-    patchDevice(device!.id, { locked });
-    pushLog(device!.id, locked ? "已上锁" : "已开锁");
-    notify(locked ? "已上锁" : "已开锁");
+  if (device.kind === "lock") {
+    return <VisualLockScreen device={device} />;
   }
+
+  const homeName = device.on ? "在线" : "已关闭";
 
   return (
     <div className="flex h-full flex-col bg-[#F5F6F8]">
@@ -1123,26 +1143,17 @@ export function DeviceScreen({ id }: { id: string }) {
           <p className="mt-1 text-[12px] text-[#AAA]">电量 {device.battery}%</p>
         </div>
 
-        {device.kind === "lock" ? (
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <PrimaryButton onClick={() => setLocked(false)}>远程开锁</PrimaryButton>
-            <button type="button" onClick={() => setLocked(true)} className="h-11 rounded-[10px] bg-white text-[16px]">
-              {device.lockKind === "semi" ? "手动上锁说明" : "远程关锁"}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-4 flex items-center justify-between rounded-2xl bg-white px-4 py-3">
-            <span>电源</span>
-            <Switch
-              checked={device.on}
-              label="电源"
-              onChange={(on) => {
-                patchDevice(device.id, { on });
-                pushLog(device.id, on ? "已开启" : "已关闭");
-              }}
-            />
-          </div>
-        )}
+        <div className="mt-4 flex items-center justify-between rounded-2xl bg-white px-4 py-3">
+          <span>电源</span>
+          <Switch
+            checked={device.on}
+            label="电源"
+            onChange={(on) => {
+              patchDevice(device.id, { on });
+              pushLog(device.id, on ? "已开启" : "已关闭");
+            }}
+          />
+        </div>
 
         {device.kind === "companion" ? (
           <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-white px-4 py-4">
@@ -1217,19 +1228,363 @@ export function DeviceScreen({ id }: { id: string }) {
           </div>
         ) : null}
 
-        {device.kind === "lock" ? (
-          <div className="mt-4 overflow-hidden rounded-2xl bg-white">
-            <Cell label="开锁记录" onClick={() => push({ name: "device-logs", id: device.id })} />
-            <Cell label="门锁用户" value={`${device.lockUsers.length} 人`} onClick={() => push({ name: "lock-users", id: device.id })} />
-            <Cell label="临时密码" onClick={() => push({ name: "temp-pass", id: device.id })} />
-          </div>
-        ) : (
-          <div className="mt-4">
-            <Cell label="操作记录" onClick={() => push({ name: "device-logs", id: device.id })} />
-          </div>
-        )}
+        <div className="mt-4">
+          <Cell label="操作记录" onClick={() => push({ name: "device-logs", id: device.id })} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function clockOf(label: string) {
+  const match = label.match(/(\d{1,2}:\d{2})/);
+  return match?.[1] ?? label;
+}
+
+function VisualLockScreen({ device }: { device: Device }) {
+  const { patchDevice, pushLog } = useApp();
+  const { pop, push, notify } = useNav();
+  const [holding, setHolding] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timer = useRef<number | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; key: string; axis: "x" | "y" | null } | null>(null);
+  const offset = useRef(0);
+  const [frameWidth, setFrameWidth] = useState(0);
+  const [cardIndex, setCardIndex] = useState(0);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const latest = device.logs[0];
+  const slides = [
+    {
+      key: "notice",
+      title: "通知",
+      body: "本地录像会丢？云存永久存",
+      count: 2,
+      icon: "bell" as const,
+      go: () => push({ name: "lock-notices", id: device.id }),
+    },
+    {
+      key: "album",
+      title: "相册/日志",
+      body: latest ? `${clockOf(latest.time)} ${latest.text}` : "暂无记录",
+      count: device.logs.length,
+      icon: "list" as const,
+      go: () => push({ name: "device-logs", id: device.id }),
+    },
+    {
+      key: "alarm",
+      title: "告警",
+      body: "门口有人停留超过 10 秒",
+      count: 1,
+      icon: "bell" as const,
+      go: () => push({ name: "lock-notices", id: device.id }),
+    },
+  ];
+  const peek = 72;
+  const gap = 12;
+  const cardWidth = Math.max(frameWidth - peek, 0);
+  const stride = cardWidth + gap;
+
+  useLayoutEffect(() => {
+    const node = frame.current;
+    if (!node) return;
+    const measure = () => setFrameWidth(node.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  function stopHold() {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+    setHolding(false);
+    setProgress(0);
+  }
+
+  function startHold() {
+    const begun = Date.now();
+    setHolding(true);
+    const tick = () => {
+      const next = Math.min(1, (Date.now() - begun) / 900);
+      setProgress(next);
+      if (next >= 1) {
+        patchDevice(device.id, { locked: false });
+        pushLog(device.id, "远程解锁");
+        notify("已开锁");
+        stopHold();
+        return;
+      }
+      timer.current = window.setTimeout(tick, 30);
+    };
+    tick();
+  }
+
+  const rows: { label: string; icon: React.ReactNode; go: () => void }[] = [
+    { label: "视频监控", icon: <Video className="size-5" />, go: () => push({ name: "lock-video", id: device.id }) },
+    { label: "AI", icon: <span className="text-[13px] font-semibold">AI</span>, go: () => push({ name: "lock-ai", id: device.id }) },
+    { label: "成员管理", icon: <UserRound className="size-5" />, go: () => push({ name: "lock-users", id: device.id }) },
+    { label: "临时密码", icon: <Grid3x3 className="size-5" />, go: () => push({ name: "temp-pass", id: device.id }) },
+    { label: "智能联动", icon: <ToggleRight className="size-5" />, go: () => push({ name: "lock-link", id: device.id }) },
+    { label: "设置", icon: <Settings className="size-5" />, go: () => push({ name: "device-settings", id: device.id }) },
+  ];
+
+  return (
+    <div className="flex h-full flex-col bg-[#F3F4F6] text-[#222]">
+      <header className="relative flex h-12 shrink-0 items-center justify-center px-12">
+        <button type="button" aria-label="返回" onClick={pop} className="absolute left-1 grid size-10 place-items-center">
+          <ChevronLeft className="size-6" />
+        </button>
+        <h1 className="truncate text-[17px] font-medium">{device.name || "可视智能门锁"}</h1>
+        <button
+          type="button"
+          aria-label="编辑设备"
+          onClick={() => push({ name: "device-settings", id: device.id })}
+          className="absolute right-2 grid size-10 place-items-center"
+        >
+          <Pencil className="size-5" />
+        </button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+        <div className="flex justify-center pt-2">
+          <span className="grid size-10 place-items-center rounded-full bg-[#E7F8F2] text-[#20C6A4]">
+            <Wifi className="size-5" />
+          </span>
+        </div>
+        <button
+          type="button"
+          aria-label="长按开锁"
+          onPointerDown={startHold}
+          onPointerUp={stopHold}
+          onPointerLeave={stopHold}
+          onPointerCancel={stopHold}
+          className="mx-auto mt-4 grid size-[210px] place-items-center"
+        >
+          <span className="relative grid size-[210px] place-items-center">
+            <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#D9F6EF" strokeWidth="9" />
+              <circle
+                cx="50"
+                cy="50"
+                r="40"
+                fill="none"
+                stroke="#20C6A4"
+                strokeWidth="9"
+                strokeLinecap="round"
+                strokeDasharray={`${holding ? Math.max(18, 251 * progress) : 251} 251`}
+                transform="rotate(-90 50 50)"
+              />
+            </svg>
+            <span className="grid size-[132px] place-items-center rounded-full bg-white text-[#20C6A4]">
+              <Lock className="size-8" />
+              <span className="mt-1 text-[14px]">{holding && progress > 0.15 ? "松开开锁" : "长按开锁"}</span>
+            </span>
+          </span>
+        </button>
+        <div className="mt-4 flex flex-col items-center text-[#8A8F98]">
+          <BatteryMedium className="size-6 text-[#2BD18A]" />
+          <p className="mt-1 text-[13px]">电池电量: {device.battery}%</p>
+        </div>
+
+        <div
+          ref={frame}
+          className="mt-5 overflow-hidden"
+          style={{ touchAction: "pan-y" }}
+          onPointerDown={(event) => {
+            const key = (event.target as HTMLElement).closest("[data-slide]")?.getAttribute("data-slide") ?? "";
+            drag.current = { x: event.clientX, y: event.clientY, moved: false, key, axis: null };
+            offset.current = 0;
+          }}
+          onPointerMove={(event) => {
+            const current = drag.current;
+            if (!current || stride <= gap) return;
+            const dx = event.clientX - current.x;
+            const dy = event.clientY - current.y;
+            if (!current.axis && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+              current.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+              if (current.axis === "x") {
+                current.moved = true;
+                setDragging(true);
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }
+            }
+            if (current.axis !== "x") return;
+            const min = -(slides.length - 1) * stride;
+            const next = Math.min(24, Math.max(min - 24, -cardIndex * stride + dx)) + cardIndex * stride;
+            offset.current = next;
+            setDragX(next);
+          }}
+          onPointerUp={() => {
+            const current = drag.current;
+            drag.current = null;
+            if (!current) return;
+            const delta = offset.current;
+            offset.current = 0;
+            setDragging(false);
+            setDragX(0);
+            if (current.axis === "y") return;
+            if (!current.moved) {
+              slides.find((slide) => slide.key === current.key)?.go();
+              return;
+            }
+            if (delta < -40) setCardIndex((index) => Math.min(slides.length - 1, index + 1));
+            else if (delta > 40) setCardIndex((index) => Math.max(0, index - 1));
+          }}
+          onPointerCancel={() => {
+            drag.current = null;
+            offset.current = 0;
+            setDragging(false);
+            setDragX(0);
+          }}
+        >
+          <div
+            className="flex"
+            style={{
+              gap,
+              transform: `translateX(${-cardIndex * stride + dragX}px)`,
+              transition: dragging ? "none" : "transform 280ms ease",
+            }}
+          >
+            {slides.map((slide) => (
+              <button
+                key={slide.key}
+                type="button"
+                data-slide={slide.key}
+                className="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(20,24,40,0.04)]"
+                style={{ width: cardWidth || "100%" }}
+              >
+                {slide.icon === "list" ? (
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#2BD18A] text-white">
+                    <List className="size-5" strokeWidth={2.4} />
+                  </span>
+                ) : (
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#E8FBF3] text-[#2BD18A]">
+                    <Bell className="size-5" />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[16px] font-medium">{slide.title}</span>
+                    {slide.count > 0 ? (
+                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#F04444] px-1 text-[11px] text-white">{slide.count}</span>
+                    ) : null}
+                  </span>
+                  <span className="mt-1 block truncate text-[13px] text-[#666]">· {slide.body}</span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-[#D0D0D0]" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3 overflow-hidden rounded-2xl bg-white">
+          {rows.map((row) => (
+            <button key={row.label} type="button" onClick={row.go} className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
+              <span className="grid size-9 place-items-center rounded-full bg-[#2BD18A] text-white">{row.icon}</span>
+              <span className="text-[16px]">{row.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LockVideoScreen({ id }: { id: string }) {
+  const device = useDevice(id);
+  const { pop, notify } = useNav();
+  if (!device) return <Page title="视频监控" onBack={pop}><p>设备已移除。</p></Page>;
+  return (
+    <Page title="视频监控" onBack={pop}>
+      <div className="overflow-hidden rounded-2xl bg-[#14181c] px-4 py-10 text-center text-white">
+        <p className="text-[13px] text-white/60">{device.name}</p>
+        <p className="mt-6 text-[18px]">门口实时画面</p>
+        <p className="mt-2 text-[13px] text-white/50">摄像头在线 · 今天 20:51</p>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <button type="button" className="h-11 rounded-xl bg-white" onClick={() => notify("正在对讲")}>对讲</button>
+        <button type="button" className="h-11 rounded-xl bg-white" onClick={() => notify("已抓拍一张")}>抓拍</button>
+      </div>
+    </Page>
+  );
+}
+
+export function LockAiScreen({ id }: { id: string }) {
+  const device = useDevice(id);
+  const { pop } = useNav();
+  if (!device) return <Page title="AI" onBack={pop}><p>设备已移除。</p></Page>;
+  return (
+    <Page title="AI" onBack={pop}>
+      <p className="text-[14px] leading-6 text-[#666]">{device.name}会根据门口录像给出提醒。</p>
+      <div className="mt-4 flex flex-col gap-3">
+        {["有人在门口停留，可以查看实时画面。", "临时密码今天被使用过一次。", "电量充足，暂不需要更换电池。"].map((item) => (
+          <p key={item} className="rounded-2xl bg-white px-4 py-4 text-[15px] leading-6">{item}</p>
+        ))}
+      </div>
+    </Page>
+  );
+}
+
+export function LockLinkScreen({ id }: { id: string }) {
+  const device = useDevice(id);
+  const { data } = useApp();
+  const { pop, push } = useNav();
+  if (!device) return <Page title="智能联动" onBack={pop}><p>设备已移除。</p></Page>;
+  const scenes = data.scenes.filter((scene) => scene.homeId === device.homeId);
+  return (
+    <Page title="智能联动" onBack={pop}>
+      <p className="text-[14px] leading-6 text-[#666]">门锁可以和其他设备一起执行。</p>
+      <div className="mt-4 overflow-hidden rounded-2xl bg-white">
+        {scenes.length === 0 ? <p className="px-4 py-6 text-[14px] text-[#888]">还没有联动。</p> : null}
+        {scenes.map((scene) => (
+          <button
+            key={scene.id}
+            type="button"
+            onClick={() => push({ name: "scene-edit", kind: scene.kind, id: scene.id })}
+            className="flex w-full items-center justify-between border-b border-[#F4F4F4] px-4 py-4 text-left last:border-b-0"
+          >
+            <span>
+              <span className="block text-[16px]">{scene.name}</span>
+              <span className="text-[12px] text-[#999]">{scene.when}</span>
+            </span>
+            <ChevronRight className="size-4 text-[#CCC]" />
+          </button>
+        ))}
+      </div>
+      <div className="mt-4">
+        <PrimaryButton onClick={() => push({ name: "scene-edit", kind: "auto" })}>创建联动</PrimaryButton>
+      </div>
+    </Page>
+  );
+}
+
+export function LockNoticesScreen({ id }: { id: string }) {
+  const device = useDevice(id);
+  const { pop, push } = useNav();
+  if (!device) return <Page title="通知" onBack={pop}><p>设备已移除。</p></Page>;
+  return (
+    <Page title="通知" onBack={pop}>
+      <div className="overflow-hidden rounded-2xl bg-white">
+        {LOCK_NOTICES.map((item) => (
+          <button
+            key={item.title}
+            type="button"
+            onClick={() => push({ name: "lock-video", id: device.id })}
+            className="flex w-full items-center gap-3 border-b border-[#F4F4F4] px-4 py-4 text-left last:border-b-0"
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-[#E8FBF3] text-[#2BD18A]">
+              <Bell className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px]">{item.title}</span>
+              <span className="mt-1 block text-[13px] text-[#666]">{item.body}</span>
+            </span>
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#F04444] px-1 text-[11px] text-white">{item.count}</span>
+          </button>
+        ))}
+      </div>
+    </Page>
   );
 }
 
@@ -1382,7 +1737,23 @@ export function DeviceLogsScreen({ id }: { id: string }) {
   const { pop } = useNav();
   if (!device) return <Page title="记录" onBack={pop}><p>设备已移除。</p></Page>;
   return (
-    <Page title={device.kind === "lock" ? "开锁记录" : "操作记录"} onBack={pop} bleed>
+    <Page title={device.kind === "lock" ? "相册/日志" : "操作记录"} onBack={pop} bleed>
+      {device.kind === "lock" ? (
+        <div className="bg-white px-4 py-4">
+          <p className="text-[13px] text-[#999]">相册</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(device.logs.length ? device.logs.slice(0, 2) : [{ id: "empty", text: "暂无抓拍", time: "" }]).map((shot) => (
+              <div key={shot.id} className="overflow-hidden rounded-xl bg-[#E7F6F1]">
+                <div className="flex h-24 items-center justify-center text-[#20C6A4]">
+                  <Video className="size-7" />
+                </div>
+                <p className="truncate px-2 py-2 text-[12px] text-[#666]">{shot.time ? `${clockOf(shot.time)} 门口` : shot.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {device.kind === "lock" ? <p className="px-4 pb-2 pt-4 text-[13px] text-[#999]">日志</p> : null}
       {device.logs.length === 0 ? <p className="px-4 py-8 text-center text-[#999]">还没有记录</p> : null}
       {device.logs.map((log) => (
         <div key={log.id} className="border-b border-[#F3F3F3] bg-white px-4 py-3">
