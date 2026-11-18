@@ -2,38 +2,54 @@
 
 import { useState } from "react";
 import {
-  ChevronDown,
-  CloudSun,
+  AudioLines,
+  BadgeCheck,
+  ChevronRight,
+  Compass,
+  Hand,
+  House,
+  Mic,
   Plus,
   Sparkles,
-  House,
+  SquarePlus,
   UserRound,
-  Workflow,
+  Zap,
 } from "lucide-react";
-import { DeviceGlyph, EmptyState } from "@/components/chrome";
+import { DeviceGlyph } from "@/components/chrome";
 import { Switch } from "@/components/chrome";
 import { useApp } from "@/lib/app-state";
 import type { Device, Group } from "@/lib/model";
 import { useNav, type TabId } from "@/lib/nav";
 import { MeScreen } from "@/components/screens/me";
-import { SceneScreen } from "@/components/screens/scenes";
 
 export function MainScreen() {
   const { tab, setTab } = useNav();
-  const { data } = useApp();
-  const unread = data.mails.filter((mail) => !mail.read).length;
+  const [discoverSeen, setDiscoverSeen] = useState(false);
 
   return (
-    <div className="flex h-full flex-col bg-[#F5F6F8] text-[#222]">
+    <div className="flex h-full flex-col bg-[#F3F5F8] text-[#222]">
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === "home" ? <HomePane /> : null}
-        {tab === "scenes" ? <SceneScreen /> : null}
+        {tab === "smart" ? <SmartPane /> : null}
+        {tab === "discover" ? <DiscoverPane /> : null}
         {tab === "me" ? <MeScreen /> : null}
       </div>
-      <nav className="grid h-14 shrink-0 grid-cols-3 border-t border-[#F0F0F0] bg-white pb-[env(safe-area-inset-bottom)]">
+      {tab === "home" || tab === "smart" ? <AskBar /> : null}
+      <nav className="grid h-[58px] shrink-0 grid-cols-4 border-t border-[#F0F0F0] bg-white pb-[env(safe-area-inset-bottom)]">
         <TabButton id="home" label="首页" active={tab === "home"} icon={<House className="size-5" />} onClick={setTab} />
-        <TabButton id="scenes" label="场景" active={tab === "scenes"} icon={<Workflow className="size-5" />} onClick={setTab} />
-        <TabButton id="me" label="我的" active={tab === "me"} icon={<UserRound className="size-5" />} badge={unread} onClick={setTab} />
+        <TabButton id="smart" label="智能" active={tab === "smart"} icon={<BadgeCheck className="size-5" />} onClick={setTab} />
+        <TabButton
+          id="discover"
+          label="发现"
+          active={tab === "discover"}
+          icon={<Compass className="size-5" />}
+          dot={!discoverSeen}
+          onClick={(id) => {
+            setDiscoverSeen(true);
+            setTab(id);
+          }}
+        />
+        <TabButton id="me" label="我的" active={tab === "me"} icon={<UserRound className="size-5" />} onClick={setTab} />
       </nav>
     </div>
   );
@@ -44,46 +60,72 @@ function TabButton({
   label,
   active,
   icon,
-  badge,
+  dot,
   onClick,
 }: {
   id: TabId;
   label: string;
   active: boolean;
   icon: React.ReactNode;
-  badge?: number;
+  dot?: boolean;
   onClick: (id: TabId) => void;
 }) {
   return (
     <button
       type="button"
       onClick={() => onClick(id)}
-      className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] ${
-        active ? "text-[#FF581C]" : "text-[#999]"
-      }`}
+      className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] ${active ? "text-[#222]" : "text-[#9AA0A8]"}`}
     >
       {icon}
       {label}
-      {badge ? (
-        <span className="absolute right-[28%] top-1 grid min-w-4 place-items-center rounded-full bg-[#E23B3B] px-1 text-[10px] leading-4 text-white">
-          {badge}
-        </span>
-      ) : null}
+      {dot ? <span className="absolute right-[30%] top-1.5 size-1.5 rounded-full bg-[#E23B3B]" /> : null}
     </button>
   );
 }
 
+function AskBar() {
+  const { push } = useNav();
+  return (
+    <div className="bg-[#F3F5F8] px-4 pb-2">
+      <div className="flex h-12 w-full items-center gap-2 rounded-full bg-white px-3 shadow-[0_4px_16px_rgba(20,24,40,0.06)]">
+        <button type="button" onClick={() => push({ name: "assistant" })} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#7C5CFF] to-[#3AA0FF] text-[11px] text-white">名</span>
+          <span className="truncate text-[14px] text-[#B0B4BA]">需要什么帮助?</span>
+        </button>
+        <button type="button" aria-label="语音" onClick={() => push({ name: "assistant", voice: true })} className="grid size-8 place-items-center">
+          <Mic className="size-5 text-[#666]" />
+        </button>
+        <button type="button" aria-label="更多提问" onClick={() => push({ name: "assistant" })} className="grid size-8 place-items-center">
+          <AudioLines className="size-5 text-[#666]" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AppHeader({
+  right,
+}: {
+  right: React.ReactNode;
+}) {
+  const { push } = useNav();
+  return (
+    <header className="flex items-center justify-between px-4 pb-2 pt-3">
+      <button type="button" onClick={() => push({ name: "family" })} className="flex items-center gap-2 text-[20px] font-semibold">
+        <House className="size-5" />
+        我的 AI 应用
+      </button>
+      <div className="flex items-center gap-2">{right}</div>
+    </header>
+  );
+}
+
 function HomePane() {
-  const { data, setHome, patchDevice, pushLog } = useApp();
+  const { data, patchDevice, pushLog } = useApp();
   const { push, notify } = useNav();
   const [menu, setMenu] = useState(false);
-  const [homesOpen, setHomesOpen] = useState(false);
-  const [roomId, setRoomId] = useState("all");
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const devices = data.devices.filter(
-    (device) =>
-      device.homeId === home.id && (roomId === "all" || device.roomId === roomId),
-  );
+  const devices = data.devices.filter((device) => device.homeId === home.id);
   const groups = data.groups.filter((group) => group.homeId === home.id);
 
   function togglePower(device: Device) {
@@ -95,71 +137,41 @@ function HomePane() {
 
   return (
     <div className="relative flex h-full flex-col">
-      <header className="bg-white px-4 pb-3 pt-3">
-        <div className="flex items-center justify-between">
-          <button type="button" className="flex items-center gap-1 text-[20px] font-medium" onClick={() => setHomesOpen(true)}>
-            {home.name}
-            <ChevronDown className="size-4 text-[#999]" />
-          </button>
-          <button
-            type="button"
-            aria-label="添加"
-            className="grid size-9 place-items-center rounded-full bg-[#FFF1EA] text-[#FF581C]"
-            onClick={() => setMenu((open) => !open)}
-          >
-            <Plus className="size-5" />
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => push({ name: "weather" })}
-          className="mt-2 flex items-center gap-1 text-[12px] text-[#888]"
-        >
-          <CloudSun className="size-3.5" />
-          上海 · 多云 22°
+      <AppHeader
+        right={
+          <>
+            <button type="button" onClick={() => push({ name: "plus" })} className="rounded-full border border-[#E6E8EE] bg-white px-3 py-1 text-[13px]">
+              Plus
+            </button>
+            <button type="button" aria-label="添加" onClick={() => setMenu((open) => !open)} className="grid size-8 place-items-center">
+              <Plus className="size-5" />
+            </button>
+          </>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <button type="button" onClick={() => push({ name: "calorie" })} className="mt-2 block w-full overflow-hidden rounded-2xl bg-gradient-to-r from-[#FFE7C2] via-[#FFF6EA] to-[#F7D7C4] px-4 py-4 text-left">
+          <p className="text-[20px] font-semibold text-[#5C3418]">拍一拍，热量就清楚</p>
+          <span className="mt-3 inline-flex h-8 items-center rounded-full bg-[#FF6A2A] px-3 text-[13px] text-white">立即体验 ›</span>
         </button>
-        <div className="mt-3 flex gap-4 overflow-x-auto text-[14px]">
-          <RoomChip label="全部" active={roomId === "all"} onClick={() => setRoomId("all")} />
-          {home.rooms.map((room) => (
-            <RoomChip
-              key={room.id}
-              label={room.name}
-              active={roomId === room.id}
-              onClick={() => setRoomId(room.id)}
-            />
-          ))}
-        </div>
-      </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {devices.length === 0 && groups.length === 0 ? (
-          <EmptyState
-            title="暂无设备"
-            body="点右上角加号，或从这里添加第一台设备。"
-            action="添加设备"
-            onAction={() => push({ name: "add" })}
-          />
+          <div className="px-6 py-10 text-center">
+            <p className="text-[18px]">添加你的第一台设备</p>
+            <p className="mt-2 text-[13px] text-[#98A0AA]">连上设备，AI 就能帮你智能控制</p>
+            <button type="button" onClick={() => push({ name: "add" })} className="mx-auto mt-5 block h-11 w-36 rounded-full bg-[#222] text-[15px] text-white">
+              去添加
+            </button>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             {devices.map((device) => (
-              <article key={device.id} className="relative min-h-[132px] rounded-2xl bg-white p-3 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-                <button
-                  type="button"
-                  className="flex h-full w-full flex-col items-start text-left"
-                  onClick={() => push({ name: "device", id: device.id })}
-                >
+              <article key={device.id} className="relative min-h-[132px] rounded-2xl bg-white p-3">
+                <button type="button" className="flex h-full w-full flex-col items-start text-left" onClick={() => push({ name: "device", id: device.id })}>
                   <DeviceGlyph kind={device.kind} />
                   <span className="mt-3 text-[15px] font-medium">{device.name}</span>
                   <span className="mt-0.5 text-[12px] text-[#999]">
-                    {device.kind === "lock"
-                      ? device.locked
-                        ? "已上锁"
-                        : "已开锁"
-                      : device.on
-                        ? "在线"
-                        : "已关闭"}
-                    {" · "}
-                    {home.rooms.find((room) => room.id === device.roomId)?.name}
+                    {device.kind === "lock" ? (device.locked ? "已上锁" : "已开锁") : device.on ? "在线" : "已关闭"}
                   </span>
                 </button>
                 {device.kind !== "lock" ? (
@@ -169,71 +181,144 @@ function HomePane() {
                 ) : null}
               </article>
             ))}
-            {roomId === "all"
-              ? groups.map((group) => <GroupCard key={group.id} group={group} />)
-              : null}
+            {groups.map((group) => (
+              <GroupCard key={group.id} group={group} />
+            ))}
           </div>
         )}
+
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-[16px] font-medium">为你推荐</p>
+          <button type="button" onClick={() => push({ name: "explore" })} className="text-[13px] text-[#8B919A]">
+            探索 ›
+          </button>
+        </div>
+        <button type="button" onClick={() => push({ name: "environment" })} className="relative mt-3 block h-36 w-full overflow-hidden rounded-2xl bg-gradient-to-br from-[#7EB6FF] to-[#4C86F0] px-4 py-4 text-left text-white">
+          <span className="text-[16px] font-medium">室内环境</span>
+          <span className="absolute right-3 top-3 rounded-full bg-[#2F7BFF] px-3 py-1 text-[12px]">添加</span>
+          <span className="absolute inset-x-0 bottom-8 text-center text-[14px] text-white/80">暂无数据</span>
+        </button>
       </div>
 
       {menu ? (
-        <div
-          className="absolute inset-0 z-20"
-          onClick={() => setMenu(false)}
-        >
+        <div className="absolute inset-0 z-20" onClick={() => setMenu(false)}>
           <span className="absolute right-4 top-14 w-36 overflow-hidden rounded-xl bg-white py-1 text-left shadow-xl">
             <MenuItem label="添加设备" onClick={() => { setMenu(false); push({ name: "add" }); }} />
             <MenuItem label="扫一扫" onClick={() => { setMenu(false); push({ name: "scan" }); }} />
-            <MenuItem label="创建场景" onClick={() => { setMenu(false); push({ name: "scene-edit", kind: "tap" }); }} />
+            <MenuItem label="创建应用" onClick={() => { setMenu(false); push({ name: "scene-edit", kind: "tap" }); }} />
           </span>
-        </div>
-      ) : null}
-
-      {homesOpen ? (
-        <div className="absolute inset-0 z-20 flex items-end bg-black/45" onClick={() => setHomesOpen(false)}>
-          <div className="w-full rounded-t-3xl bg-white px-4 pb-6 pt-4" onClick={(event) => event.stopPropagation()}>
-            <p className="text-center text-[16px] font-medium">切换家庭</p>
-            <div className="mt-3">
-              {data.homes.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="flex w-full items-center justify-between border-b border-[#F4F4F4] py-3 text-left"
-                  onClick={() => {
-                    setHome(item.id);
-                    setRoomId("all");
-                    setHomesOpen(false);
-                  }}
-                >
-                  <span>{item.name}</span>
-                  <span className={item.id === home.id ? "text-[#FF581C]" : "text-[#CCC]"}>
-                    {item.id === home.id ? "当前" : ""}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="mt-3 h-11 w-full rounded-[10px] bg-[#FF581C] text-white"
-              onClick={() => {
-                setHomesOpen(false);
-                push({ name: "family" });
-              }}
-            >
-              家庭管理
-            </button>
-          </div>
         </div>
       ) : null}
     </div>
   );
 }
 
-function RoomChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SmartPane() {
+  const { data } = useApp();
+  const { push } = useNav();
+  const scenes = data.scenes.filter((scene) => scene.homeId === data.currentHomeId);
+  const rows = [
+    { icon: <BadgeCheck className="size-5 text-[#F5B400]" />, label: "自动化", go: () => push({ name: "scene-list", kind: "auto" }) },
+    { icon: <Hand className="size-5 text-[#2FBF71]" />, label: "手动执行", go: () => push({ name: "scene-list", kind: "tap" }) },
+    { icon: <Sparkles className="size-5 text-[#5B7CFF]" />, label: "推荐应用模版", go: () => push({ name: "templates" }) },
+  ];
+
   return (
-    <button type="button" onClick={onClick} className={`shrink-0 pb-1 ${active ? "border-b-2 border-[#FF581C] text-[#FF581C]" : "text-[#666]"}`}>
-      {label}
-    </button>
+    <div className="flex h-full flex-col">
+      <AppHeader
+        right={
+          <>
+            <button type="button" aria-label="我的应用" onClick={() => push({ name: "scene-list", kind: "tap" })} className="grid size-8 place-items-center">
+              <span className="text-[18px] leading-none">☰</span>
+            </button>
+            <button type="button" aria-label="创建" onClick={() => push({ name: "scene-edit", kind: "auto" })} className="grid size-8 place-items-center">
+              <SquarePlus className="size-5" />
+            </button>
+          </>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <div className="overflow-hidden rounded-2xl bg-white">
+          {rows.map((row) => (
+            <button key={row.label} type="button" onClick={row.go} className="flex w-full items-center gap-3 border-b border-[#F4F5F7] px-4 py-4 text-left last:border-b-0">
+              {row.icon}
+              <span className="flex-1 text-[16px]">{row.label}</span>
+              <ChevronRight className="size-4 text-[#CCC]" />
+            </button>
+          ))}
+        </div>
+        <p className="mb-3 mt-5 text-[15px] text-[#666]">我的应用</p>
+        {scenes.length === 0 ? (
+          <div className="px-6 py-8 text-center">
+            <p className="text-[18px]">暂无应用</p>
+            <p className="mt-2 text-[13px] text-[#98A0AA]">创建你的专属智能应用</p>
+            <button type="button" onClick={() => push({ name: "scene-edit", kind: "auto" })} className="mx-auto mt-5 block h-11 w-36 rounded-full bg-[#222] text-[15px] text-white">
+              去创建
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {scenes.map((scene) => (
+              <button
+                key={scene.id}
+                type="button"
+                onClick={() => push({ name: "scene-edit", kind: scene.kind, id: scene.id })}
+                className="rounded-2xl bg-white px-4 py-4 text-left"
+              >
+                <span className="block text-[16px] font-medium">{scene.name}</span>
+                <span className="mt-1 block text-[12px] text-[#888]">{scene.kind === "auto" ? "自动化" : "手动执行"} · {scene.when}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DiscoverPane() {
+  const { push } = useNav();
+  return (
+    <div className="flex h-full flex-col">
+      <AppHeader right={<span className="px-2 text-[20px] tracking-widest text-[#666]">···</span>} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <button type="button" onClick={() => push({ name: "energy" })} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left">
+          <Zap className="size-6 text-[#F5B400]" />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 text-[16px] font-medium">AI 节能 <span className="size-1.5 rounded-full bg-[#E23B3B]" /></span>
+            <span className="mt-1 block text-[12px] text-[#98A0AA]">了解家庭智能设备的能耗状况，获取节能建议</span>
+          </span>
+          <ChevronRight className="size-4 text-[#CCC]" />
+        </button>
+        <div className="mt-3 overflow-hidden rounded-2xl bg-white">
+          <button type="button" onClick={() => push({ name: "notes" })} className="flex w-full items-center gap-3 border-b border-[#F4F5F7] px-4 py-4 text-left">
+            <span className="grid size-8 place-items-center rounded-lg bg-[#E8F0FF] text-[#3A7BFF]">记</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px]">AI 笔记</span>
+              <span className="mt-1 block text-[12px] text-[#98A0AA]">录音转写，一键总结</span>
+            </span>
+            <ChevronRight className="size-4 text-[#CCC]" />
+          </button>
+          <button type="button" onClick={() => push({ name: "translate" })} className="flex w-full items-center gap-3 px-4 py-4 text-left">
+            <span className="grid size-8 place-items-center rounded-lg bg-[#FFF1E4] text-[#FF8A2A]">译</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px]">AI 翻译</span>
+              <span className="mt-1 block text-[12px] text-[#98A0AA]">AI大模型驱动，准确又自然</span>
+            </span>
+            <ChevronRight className="size-4 text-[#CCC]" />
+          </button>
+        </div>
+        <button type="button" onClick={() => push({ name: "agents" })} className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left">
+          <span className="flex-1 text-[16px]">更多 AI Agent</span>
+          <span className="flex -space-x-1">
+            <span className="grid size-6 place-items-center rounded-full bg-[#E7F8EF] text-[10px]">宠</span>
+            <span className="grid size-6 place-items-center rounded-full bg-[#FFF4D8] text-[10px]">锁</span>
+            <span className="grid size-6 place-items-center rounded-full bg-[#E8F0FF] text-[10px]">电</span>
+          </span>
+          <ChevronRight className="size-4 text-[#CCC]" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -258,11 +343,7 @@ function GroupCard({ group }: { group: Group }) {
   const { data } = useApp();
   const devices = data.devices.filter((device) => group.deviceIds.includes(device.id));
   return (
-    <button
-      type="button"
-      onClick={() => push({ name: "group", id: group.id })}
-      className="min-h-[132px] rounded-2xl bg-white p-3 text-left"
-    >
+    <button type="button" onClick={() => push({ name: "group", id: group.id })} className="min-h-[132px] rounded-2xl bg-white p-3 text-left">
       <span className="grid size-11 place-items-center rounded-2xl bg-[#EEF4FF] text-[#3A7BFF]">
         <Sparkles className="size-5" />
       </span>

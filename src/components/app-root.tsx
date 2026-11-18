@@ -36,7 +36,23 @@ import {
   VoiceScreen,
   WeatherScreen,
 } from "@/components/screens/me";
-import { SceneEditor } from "@/components/screens/scenes";
+import {
+  AgentScreen,
+  AgentsScreen,
+  AssistantScreen,
+  CalorieScreen,
+  EnergyScreen,
+  EnvironmentScreen,
+  ExploreScreen,
+  NetworkScreen,
+  NotesScreen,
+  OrdersScreen,
+  PlusScreen,
+  TemplateScreen,
+  TranslateScreen,
+  WebAiScreen,
+} from "@/components/screens/features";
+import { SceneEditor, SceneScreen } from "@/components/screens/scenes";
 import { AppStateProvider, useApp } from "@/lib/app-state";
 import { NavProvider, useNav, type Route, type TabId } from "@/lib/nav";
 
@@ -157,7 +173,37 @@ function Screen({
     case "group":
       return <GroupScreen id={route.id} />;
     case "scene-edit":
-      return <SceneEditor kind={route.kind} id={route.id} />;
+      return <SceneEditor kind={route.kind} id={route.id} initialName={route.initialName} initialWhen={route.initialWhen} />;
+    case "scene-list":
+      return <SceneScreen fixedKind={route.kind} />;
+    case "plus":
+      return <PlusScreen />;
+    case "calorie":
+      return <CalorieScreen />;
+    case "assistant":
+      return <AssistantScreen voice={route.voice} />;
+    case "explore":
+      return <ExploreScreen />;
+    case "environment":
+      return <EnvironmentScreen />;
+    case "templates":
+      return <TemplateScreen />;
+    case "energy":
+      return <EnergyScreen />;
+    case "notes":
+      return <NotesScreen />;
+    case "translate":
+      return <TranslateScreen />;
+    case "agents":
+      return <AgentsScreen />;
+    case "agent":
+      return <AgentScreen id={route.id} />;
+    case "orders":
+      return <OrdersScreen />;
+    case "network":
+      return <NetworkScreen />;
+    case "web-ai":
+      return <WebAiScreen />;
     case "family":
       return <FamilyScreen />;
     case "home-detail":

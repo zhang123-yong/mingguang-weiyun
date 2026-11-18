@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import {
   ConfirmDialog,
   EmptyState,
@@ -15,42 +15,29 @@ import { useApp } from "@/lib/app-state";
 import { actionText, type Scene, type SceneAction } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 
-export function SceneScreen() {
+export function SceneScreen({ fixedKind }: { fixedKind: "tap" | "auto" }) {
   const { data, patchScene, runScene } = useApp();
-  const { push, notify } = useNav();
-  const [kind, setKind] = useState<"tap" | "auto">("tap");
+  const { push, pop, notify } = useNav();
+  const kind = fixedKind;
   const homeId = data.currentHomeId;
   const scenes = data.scenes.filter((scene) => scene.homeId === homeId && scene.kind === kind);
 
   return (
     <div className="flex h-full flex-col bg-[#F5F6F8]">
-      <header className="flex h-12 items-center justify-between bg-white px-4">
-        <h1 className="text-[18px] font-medium">场景</h1>
+      <header className="flex h-12 items-center justify-between bg-white px-2">
+        <button type="button" aria-label="返回" onClick={pop} className="grid size-10 place-items-center">
+          <ChevronLeft className="size-6" />
+        </button>
+        <h1 className="text-[17px] font-medium">{kind === "auto" ? "自动化" : "手动执行"}</h1>
         <button
           type="button"
-          aria-label="创建场景"
-          className="grid size-9 place-items-center rounded-full bg-[#FFF1EA] text-[#FF581C]"
+          aria-label="创建"
+          className="grid size-10 place-items-center text-[#222]"
           onClick={() => push({ name: "scene-edit", kind })}
         >
           <Plus className="size-5" />
         </button>
       </header>
-      <div className="flex gap-6 border-b border-[#F2F2F2] bg-white px-4 text-[15px]">
-        <button
-          type="button"
-          className={`pb-2 ${kind === "tap" ? "border-b-2 border-[#FF581C] text-[#FF581C]" : "text-[#888]"}`}
-          onClick={() => setKind("tap")}
-        >
-          一键执行
-        </button>
-        <button
-          type="button"
-          className={`pb-2 ${kind === "auto" ? "border-b-2 border-[#FF581C] text-[#FF581C]" : "text-[#888]"}`}
-          onClick={() => setKind("auto")}
-        >
-          自动化
-        </button>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {scenes.length === 0 ? (
           <EmptyState
@@ -115,14 +102,24 @@ export function SceneScreen() {
 
 const WHEN_OPTIONS = ["点击执行", "每天 07:00", "每天 23:00", "有人到家"];
 
-export function SceneEditor({ kind, id }: { kind: "tap" | "auto"; id?: string }) {
+export function SceneEditor({
+  kind,
+  id,
+  initialName,
+  initialWhen,
+}: {
+  kind: "tap" | "auto";
+  id?: string;
+  initialName?: string;
+  initialWhen?: string;
+}) {
   const { data, addScene, patchScene, removeScene } = useApp();
   const { pop, notify } = useNav();
   const existing = data.scenes.find((scene) => scene.id === id);
   const homeId = existing?.homeId ?? data.currentHomeId;
   const devices = data.devices.filter((device) => device.homeId === homeId);
-  const [name, setName] = useState(existing?.name ?? (kind === "tap" ? "新的一键执行" : "新的自动化"));
-  const [when, setWhen] = useState(existing?.when ?? (kind === "tap" ? "点击执行" : "每天 23:00"));
+  const [name, setName] = useState(existing?.name ?? initialName ?? (kind === "tap" ? "新的一键执行" : "新的自动化"));
+  const [when, setWhen] = useState(existing?.when ?? initialWhen ?? (kind === "tap" ? "点击执行" : "每天 23:00"));
   const [actions, setActions] = useState<SceneAction[]>(existing?.actions ?? []);
   const [confirmDelete, setConfirmDelete] = useState(false);
 

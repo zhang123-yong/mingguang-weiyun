@@ -3,14 +3,18 @@
 import { useState } from "react";
 import {
   Bell,
+  Bot,
   ChevronRight,
   CircleHelp,
   House,
   Info,
-  MessageSquare,
+  ScanLine,
   Settings,
   Shield,
+  ShoppingBag,
   Volume2,
+  Wifi,
+  Waypoints,
 } from "lucide-react";
 import {
   Cell,
@@ -31,39 +35,34 @@ export function MeScreen() {
   const { push } = useNav();
   const user = data.user;
   const unread = data.mails.filter((mail) => !mail.read).length;
-  const initial = user?.nickname.slice(0, 1) ?? "名";
 
+  const customName = user?.nickname && !/^(用户\d+|QQ 用户|微信用户)$/.test(user.nickname);
   return (
-    <div className="h-full overflow-y-auto bg-[#F5F6F8]">
-      <button
-        type="button"
-        onClick={() => push({ name: "profile" })}
-        className="flex w-full items-center gap-3 bg-white px-4 py-5 text-left"
-      >
-        <span className="grid size-14 place-items-center rounded-full bg-[#FF581C] text-[22px] text-white">
-          {initial}
+    <div className="h-full overflow-y-auto bg-[#F3F5F8]">
+      <div className="flex justify-end gap-3 px-4 pt-3">
+        <button type="button" aria-label="扫一扫" onClick={() => push({ name: "scan" })} className="grid size-8 place-items-center">
+          <ScanLine className="size-5" />
+        </button>
+        <button type="button" aria-label="设置" onClick={() => push({ name: "settings" })} className="grid size-8 place-items-center">
+          <Settings className="size-5" />
+        </button>
+      </div>
+      <button type="button" onClick={() => push({ name: "profile" })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className="grid size-12 place-items-center rounded-full bg-white text-[#7AA2FF] shadow-sm">
+          <Bot className="size-7" />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[18px] font-medium">{user?.nickname}</span>
-          <span className="mt-1 block text-[12px] text-[#999]">
-            {user?.method === "phone"
-              ? user.phone
-              : user?.method === "qq"
-                ? "QQ 登录"
-                : "微信登录"}
-          </span>
-        </span>
+        <span className="min-w-0 flex-1 text-[18px] font-medium">{customName ? user?.nickname : "点此设置昵称"}</span>
         <ChevronRight className="size-4 text-[#CCC]" />
       </button>
-      <div className="mt-3 flex flex-col gap-3 px-4 pb-6">
+      <div className="px-4 pb-6">
         <Group>
-          <Cell icon={<Badge color="bg-[#FF581C]"><House className="size-4" /></Badge>} label="家庭管理" onClick={() => push({ name: "family" })} />
-          <Cell icon={<Badge color="bg-[#3A7BFF]"><Bell className="size-4" /></Badge>} label="消息中心" value={unread ? `${unread} 条未读` : ""} onClick={() => push({ name: "messages" })} />
-          <Cell icon={<Badge color="bg-[#28C445]"><MessageSquare className="size-4" /></Badge>} label="第三方语音服务" onClick={() => push({ name: "voice" })} />
-        </Group>
-        <Group>
-          <Cell icon={<Badge color="bg-[#8B5CF6]"><CircleHelp className="size-4" /></Badge>} label="帮助与反馈" onClick={() => push({ name: "help" })} />
-          <Cell icon={<Badge color="bg-[#666]"><Settings className="size-4" /></Badge>} label="设置" onClick={() => push({ name: "settings" })} />
+          <Cell icon={<Badge color="bg-[#FF7A45]"><House className="size-4" /></Badge>} label="家庭管理" onClick={() => push({ name: "family" })} />
+          <Cell icon={<Badge color="bg-[#3DDC84]"><Bell className="size-4" /></Badge>} label="消息中心" value={unread ? `${unread}` : ""} onClick={() => push({ name: "messages" })} />
+          <Cell icon={<Badge color="bg-[#F5B400]"><ShoppingBag className="size-4" /></Badge>} label="我的订单" onClick={() => push({ name: "orders" })} />
+          <Cell icon={<Badge color="bg-[#3A7BFF]"><Wifi className="size-4" /></Badge>} label="家庭网络" onClick={() => push({ name: "network" })} />
+          <Cell icon={<Badge color="bg-[#3EC6E0]"><CircleHelp className="size-4" /></Badge>} label="帮助中心" onClick={() => push({ name: "help" })} />
+          <Cell icon={<Badge color="bg-[#FF7A45]"><Waypoints className="size-4" /></Badge>} label="三方设备与服务" onClick={() => push({ name: "voice" })} />
+          <Cell icon={<Badge color="bg-[#3A7BFF]"><Bot className="size-4" /></Badge>} label="名光 AI 网页版" onClick={() => push({ name: "web-ai" })} />
         </Group>
       </div>
     </div>
@@ -595,8 +594,9 @@ const VOICE_SERVICES = ["小爱同学", "天猫精灵", "小度", "Alexa"];
 export function VoiceScreen() {
   const { pop, push } = useNav();
   return (
-    <Page title="第三方语音服务" onBack={pop}>
+    <Page title="三方设备与服务" onBack={pop}>
       <Group>
+        <Cell label="扫码添加第三方设备" onClick={() => push({ name: "scan" })} />
         {VOICE_SERVICES.map((service) => (
           <Cell key={service} label={service} onClick={() => push({ name: "voice-bind", service })} />
         ))}

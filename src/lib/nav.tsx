@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-export type TabId = "home" | "scenes" | "me";
+export type TabId = "home" | "smart" | "discover" | "me";
 
 export type Route =
   | { name: "cover" }
@@ -21,7 +21,22 @@ export type Route =
   | { name: "temp-pass"; id: string }
   | { name: "group-edit"; deviceId?: string }
   | { name: "group"; id: string }
-  | { name: "scene-edit"; kind: "tap" | "auto"; id?: string }
+  | { name: "scene-edit"; kind: "tap" | "auto"; id?: string; initialName?: string; initialWhen?: string }
+  | { name: "scene-list"; kind: "tap" | "auto" }
+  | { name: "plus" }
+  | { name: "calorie" }
+  | { name: "assistant"; voice?: boolean }
+  | { name: "explore" }
+  | { name: "environment" }
+  | { name: "templates" }
+  | { name: "energy" }
+  | { name: "notes" }
+  | { name: "translate" }
+  | { name: "agents" }
+  | { name: "agent"; id: string }
+  | { name: "orders" }
+  | { name: "network" }
+  | { name: "web-ai" }
   | { name: "family" }
   | { name: "home-detail"; id: string }
   | { name: "rooms"; homeId: string }
