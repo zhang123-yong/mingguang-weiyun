@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -H 127.0.0.1 -p 3847",
+    "dev": "next dev --turbopack -H 0.0.0.0 -p 3847",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3847",
     "lint": "eslint"
