@@ -1,5 +1,5 @@
-import { CoverScreen } from "@/components/cover-screen";
+import { AppRoot } from "@/components/app-root";
 
 export default function Home() {
-  return <CoverScreen />;
+  return <AppRoot />;
 }

@@ -34,35 +34,27 @@ const DOCUMENTS: Record<
     title: "第三方信息共享和SDK服务清单",
     paragraphs: [
       "为完成第三方账号登录和消息到达，名光智能会按最小范围向对应服务提供标识信息。",
+      "使用 QQ 或微信登录时，只会取得头像和昵称，用来进入你的家庭。",
       "共享内容只限于完成该功能所需要的部分，不会附带与功能无关的资料。",
-      "当前封面预留了 QQ 与微信登录入口，接入范围以实际开放的能力为准。",
     ],
   },
-};
-
-const ACTION_HINT: Record<ActionId, string> = {
-  login: "已同意协议，即将进入登录",
-  register: "已同意协议，即将进入注册",
-  qq: "已同意协议，即将使用 QQ 登录",
-  wechat: "已同意协议，即将使用微信登录",
 };
 
 const DOC_LINK =
   "text-[#3A7BFF] hover:text-[#215ed6] focus-visible:outline-none focus-visible:underline";
 
-export function CoverScreen() {
-  const [agreed, setAgreed] = useState(false);
+export function CoverScreen({
+  agreed,
+  onAgreedChange,
+  onContinue,
+}: {
+  agreed: boolean;
+  onAgreedChange: (value: boolean) => void;
+  onContinue: (action: ActionId) => void;
+}) {
   const [pending, setPending] = useState<ActionId | null>(null);
   const [docId, setDocId] = useState<DocId | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const timer = useRef<number | null>(null);
   const agreeButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current) window.clearTimeout(timer.current);
-    };
-  }, []);
 
   useEffect(() => {
     if (!pending || docId) return;
@@ -82,32 +74,25 @@ export function CoverScreen() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [docId]);
 
-  function showToast(message: string) {
-    setToast(message);
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setToast(null), 2200);
-  }
-
   function requestAction(action: ActionId) {
     if (!agreed) {
       setPending(action);
       return;
     }
-    showToast(ACTION_HINT[action]);
+    onContinue(action);
   }
 
   function agreeAndContinue() {
     const action = pending;
-    setAgreed(true);
+    onAgreedChange(true);
     setPending(null);
-    if (action) showToast(ACTION_HINT[action]);
+    if (action) onContinue(action);
   }
 
   const document = docId ? DOCUMENTS[docId] : null;
 
   return (
-    <div className="min-h-dvh bg-white text-[#222] sm:flex sm:items-center sm:justify-center sm:bg-[#E7E9EE] sm:p-6">
-      <div className="relative mx-auto flex h-dvh w-full max-w-[420px] flex-col overflow-hidden bg-white sm:h-[min(844px,calc(100dvh-48px))] sm:rounded-[32px] sm:shadow-[0_24px_70px_rgba(20,24,40,0.16)]">
+    <div className="relative flex h-full flex-col bg-white text-[#222]">
         <h1 className="sr-only">名光智能</h1>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -138,7 +123,7 @@ export function CoverScreen() {
               <Checkbox
                 id="agree"
                 checked={agreed}
-                onCheckedChange={setAgreed}
+                onCheckedChange={onAgreedChange}
                 aria-label="同意隐私政策、用户协议和第三方信息共享清单"
                 className="mt-[3px] size-[16px] rounded-[3px] border-[#C8C8C8] bg-white data-checked:border-[#FF581C] data-checked:bg-[#FF581C]"
               />
@@ -167,17 +152,6 @@ export function CoverScreen() {
             </div>
           </div>
         </div>
-
-        {toast ? (
-          <div className="pointer-events-none absolute inset-x-0 top-5 z-40 flex justify-center px-6">
-            <p
-              role="status"
-              className="rounded-full bg-black/75 px-4 py-2 text-center text-[13px] text-white shadow-lg"
-            >
-              {toast}
-            </p>
-          </div>
-        ) : null}
 
         {pending && !document ? (
           <div
@@ -244,7 +218,6 @@ export function CoverScreen() {
             </div>
           </div>
         ) : null}
-      </div>
     </div>
   );
 }
