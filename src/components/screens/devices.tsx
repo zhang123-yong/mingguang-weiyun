@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AudioLines, Bot, Cat, Dog, KeyRound, Lamp, LockKeyhole, Search, type LucideIcon } from "lucide-react";
+import { AudioLines, Bluetooth, Bot, Cat, Dog, KeyRound, Lamp, LockKeyhole, Search, Wifi, type LucideIcon } from "lucide-react";
 import {
   ConfirmDialog,
   DeviceGlyph,
@@ -145,7 +145,9 @@ export function PairScreen({ productId }: { productId: string }) {
   const { data, addDevice } = useApp();
   const { pop, reset, notify } = useNav();
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const [step, setStep] = useState<"guide" | "slow" | "search" | "found" | "name">("guide");
+  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "search" | "found" | "name">(
+    productOf(productId)?.category === "lock" ? "choose" : "guide",
+  );
   const [deviceName, setDeviceName] = useState(product?.name ?? "");
   const [roomId, setRoomId] = useState(home.rooms[0]?.id ?? "");
 
@@ -179,12 +181,31 @@ export function PairScreen({ productId }: { productId: string }) {
     reset({ name: "tabs" });
   }
 
+  if (product.category === "lock" && step === "choose") {
+    return (
+      <NetworkChoiceScreen
+        onBack={pop}
+        onBluetooth={() => setStep("guide")}
+        onWifi={() => setStep("wifi")}
+      />
+    );
+  }
+
+  if (product.category === "lock" && step === "wifi") {
+    return (
+      <LockWifiScreen
+        onClose={() => setStep("choose")}
+        onNext={() => setStep("search")}
+      />
+    );
+  }
+
   if (product.category === "lock" && (step === "guide" || step === "slow")) {
     return (
       <LockResetScreen
-        variant={product.lockKind === "semi" ? "semi" : "auto"}
+        initialReady
         showReset={step === "slow"}
-        onClose={pop}
+        onClose={() => setStep("choose")}
         onNext={() => setStep("search")}
         onReset={() => setStep(step === "slow" ? "guide" : "slow")}
       />
@@ -267,21 +288,115 @@ export function PairScreen({ productId }: { productId: string }) {
 
 const RESET_STEPS = ["设备上电", "打开手机蓝牙", "按产品说明书使设备进入蓝牙配网状态"];
 
+function NetworkChoiceScreen({
+  onBack,
+  onBluetooth,
+  onWifi,
+}: {
+  onBack: () => void;
+  onBluetooth: () => void;
+  onWifi: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col overflow-y-auto bg-white px-5 pb-8 pt-3 text-[#222]">
+      <button type="button" aria-label="返回" onClick={onBack} className="grid size-9 place-items-center self-start text-[22px] leading-none">
+        ‹
+      </button>
+      <h1 className="mt-3 text-[22px] font-semibold leading-8">检查设备网络连接协议信息</h1>
+      <p className="mt-4 text-[15px] leading-7 text-[#333]">
+        设备支持的网络连接协议信息，例如 Wi-Fi、蓝牙、Zigbee 等，通常可以在包装盒、产品说明书、设备铭牌上找到相关信息，可参考下图。若仍未找到也可咨询商家。
+      </p>
+      <NetworkGuideArt />
+      <p className="mt-4 text-[15px] leading-7">确认设备支持的网络协议信息后，请选择对应类型尝试连网。</p>
+      <p className="mt-5 text-[16px] font-medium">选择配网方式：</p>
+      <div className="mt-3 grid gap-3">
+        <button type="button" onClick={onBluetooth} className="flex h-14 items-center gap-3 rounded-2xl bg-[#F6F7F9] px-4 text-left text-[16px]">
+          <span className="grid size-8 place-items-center rounded-full bg-[#2F7BFF] text-white">
+            <Bluetooth className="size-4" />
+          </span>
+          蓝牙
+        </button>
+        <button type="button" onClick={onWifi} className="flex h-14 items-center gap-3 rounded-2xl bg-[#F6F7F9] px-4 text-left text-[16px]">
+          <span className="grid size-8 place-items-center rounded-full bg-[#2F7BFF] text-white">
+            <Wifi className="size-4" />
+          </span>
+          Wi-Fi
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NetworkGuideArt() {
+  return (
+    <svg viewBox="0 0 320 150" className="mt-4 h-auto w-full rounded-xl" aria-hidden>
+      <rect width="320" height="150" rx="8" fill="#C9A27A" />
+      <rect x="18" y="28" width="118" height="96" rx="4" fill="#F7F7F5" />
+      <text x="30" y="48" fill="#666" fontSize="8">Connectivity</text>
+      <circle cx="34" cy="64" r="4" fill="#2F7BFF" />
+      <text x="44" y="67" fill="#333" fontSize="9">Wi-Fi</text>
+      <circle cx="34" cy="82" r="4" fill="#2F7BFF" />
+      <text x="44" y="85" fill="#333" fontSize="9">Bluetooth</text>
+      <circle cx="34" cy="100" r="4" fill="#2F7BFF" />
+      <text x="44" y="103" fill="#333" fontSize="9">2.4GHz</text>
+      <rect x="150" y="22" width="132" height="108" rx="3" fill="#FFF" />
+      <text x="162" y="40" fill="#222" fontSize="9">Network Capability</text>
+      <text x="162" y="58" fill="#444" fontSize="8">• Wi-Fi</text>
+      <text x="162" y="72" fill="#444" fontSize="8">• Bluetooth</text>
+      <text x="162" y="86" fill="#444" fontSize="8">• 2.4GHz Wi-Fi</text>
+      <text x="162" y="100" fill="#444" fontSize="8">• 5GHz Wi-Fi</text>
+    </svg>
+  );
+}
+
+function LockWifiScreen({
+  onClose,
+  onNext,
+}: {
+  onClose: () => void;
+  onNext: () => void;
+}) {
+  const [showReset, setShowReset] = useState(false);
+  return (
+    <div className="flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
+      <div className="flex items-center justify-between">
+        <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
+          ×
+        </button>
+        <span className="rounded-full bg-[#F3F4F6] px-4 py-1.5 text-[14px] text-[#666]">Wi-Fi</span>
+      </div>
+      <h1 className="mt-4 text-[28px] font-semibold tracking-tight">重置设备</h1>
+      <div className="flex flex-1 items-center justify-center py-4">
+        <LockArtwork />
+      </div>
+      <p className="text-center text-[16px] leading-7">设备上电，确认设备正常工作，按照说明书指示进入配网状态</p>
+      {showReset ? (
+        <p className="mt-3 text-center text-[13px] leading-5 text-[#888]">长按键盘复位区，直到键盘灯慢闪，再点确认。</p>
+      ) : null}
+      <button type="button" onClick={onNext} className="mt-8 h-12 w-full rounded-xl bg-[#FF581C] text-[16px] text-white">
+        确认键盘灯慢闪
+      </button>
+      <button type="button" onClick={() => setShowReset((value) => !value)} className="mt-4 text-center text-[15px] text-[#2F7BFF]">
+        按步骤重置设备
+      </button>
+    </div>
+  );
+}
+
 function LockResetScreen({
-  variant,
+  initialReady = false,
   showReset,
   onClose,
   onNext,
   onReset,
 }: {
-  variant: "auto" | "semi";
+  initialReady?: boolean;
   showReset: boolean;
   onClose: () => void;
   onNext: () => void;
   onReset: () => void;
 }) {
-  const [ready, setReady] = useState(false);
-  const [bluetoothOn, setBluetoothOn] = useState(false);
+  const [ready, setReady] = useState(initialReady);
 
   return (
     <div className="flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
@@ -289,17 +404,11 @@ function LockResetScreen({
         <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
           ×
         </button>
-        <button
-          type="button"
-          onClick={() => setBluetoothOn((on) => !on)}
-          className={`rounded-full px-4 py-1.5 text-[14px] ${bluetoothOn ? "bg-[#EAF3FF] text-[#2F7BFF]" : "bg-[#F3F4F6] text-[#666]"}`}
-        >
-          蓝牙
-        </button>
+        <span className="rounded-full bg-[#F3F4F6] px-4 py-1.5 text-[14px] text-[#666]">蓝牙</span>
       </div>
       <h1 className="mt-4 text-[28px] font-semibold tracking-tight">重置设备</h1>
       <div className="flex flex-1 items-center justify-center py-4">
-        <LockArtwork variant={variant} />
+        <LockArtwork />
       </div>
       <div>
         <p className="text-[16px]">请按以下步骤完成设置</p>
@@ -344,62 +453,39 @@ function LockResetScreen({
   );
 }
 
-function LockArtwork({ variant }: { variant: "auto" | "semi" }) {
-  const auto = variant === "auto";
-  const body = auto ? "url(#lock-body-auto)" : "url(#lock-body-semi)";
-  const plate = auto ? "#1C1E22" : "#F4F5F7";
-  const key = auto ? "#3A3E46" : "#D5D8DE";
-  const ink = auto ? "#C5C8CE" : "#5E6570";
+function LockArtwork() {
   return (
-    <svg viewBox="0 0 220 300" className="h-[228px] w-auto" aria-hidden>
+    <svg viewBox="0 0 220 320" className="h-[236px] w-auto" aria-hidden>
       <defs>
-        <linearGradient id="lock-body-auto" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5A5E66" />
-          <stop offset="0.4" stopColor="#2C3036" />
-          <stop offset="1" stopColor="#141618" />
-        </linearGradient>
-        <linearGradient id="lock-body-semi" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#F7F8FA" />
-          <stop offset="0.5" stopColor="#C5CAD2" />
-          <stop offset="1" stopColor="#8B929C" />
+        <linearGradient id="lock-body" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#4E535B" />
+          <stop offset="0.35" stopColor="#2A2E34" />
+          <stop offset="1" stopColor="#15171A" />
         </linearGradient>
         <linearGradient id="lock-handle" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={auto ? "#6A6F78" : "#FFFFFF"} />
-          <stop offset="1" stopColor={auto ? "#2A2E34" : "#A7ADB6"} />
+          <stop offset="0" stopColor="#6B7078" />
+          <stop offset="1" stopColor="#2C3036" />
+        </linearGradient>
+        <linearGradient id="lock-key" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#3C4148" />
+          <stop offset="1" stopColor="#23272C" />
         </linearGradient>
       </defs>
-      <rect x="78" y="18" width="64" height="264" rx="10" fill={body} />
-      <rect x="86" y="30" width="48" height="14" rx="3" fill={auto ? "#101114" : "#E6E8EC"} />
-      <circle cx="110" cy="37" r="2" fill={auto ? "#35D07F" : "#FF581C"} />
+      <rect x="86" y="16" width="52" height="288" rx="8" fill="url(#lock-body)" />
+      <rect x="94" y="28" width="36" height="22" rx="2" fill="#101114" />
+      <rect x="100" y="34" width="18" height="8" rx="1" fill="#1C2830" />
+      <circle cx="112" cy="38" r="1.4" fill="#3DDC84" />
       {Array.from({ length: 12 }, (_, index) => {
         const col = index % 3;
         const row = Math.floor(index / 3);
-        return (
-          <rect
-            key={index}
-            x={90 + col * 16}
-            y={56 + row * 18}
-            width="12"
-            height="12"
-            rx={auto ? 2 : 6}
-            fill={key}
-          />
-        );
+        return <rect key={index} x={96 + col * 12} y={60 + row * 16} width="9" height="11" rx="1.5" fill="url(#lock-key)" />;
       })}
-      <circle cx="110" cy="148" r="14" fill="none" stroke={ink} strokeWidth="1.4" />
-      <path d="M102 148c2-4 6-6 8-6s6 2 8 6c-2 4-6 6-8 6s-6-2-8-6z" fill="none" stroke={ink} strokeWidth="1.2" />
-      <path d="M106 148h8M110 144v8" stroke={ink} strokeWidth="1" />
-      {auto ? (
-        <g>
-          <rect x="118" y="196" width="62" height="18" rx="9" fill="url(#lock-handle)" />
-          <rect x="108" y="192" width="18" height="26" rx="4" fill={plate} />
-        </g>
-      ) : (
-        <g>
-          <circle cx="110" cy="210" r="18" fill="url(#lock-handle)" />
-          <circle cx="110" cy="210" r="7" fill={plate} />
-        </g>
-      )}
+      <circle cx="112" cy="142" r="11" fill="#1A1D21" stroke="#8E949C" strokeWidth="1" />
+      <path d="M107 142c1.2-3 3-4.2 5-4.2s3.8 1.2 5 4.2c-1.2 3-3 4.2-5 4.2s-3.8-1.2-5-4.2z" fill="none" stroke="#C5C8CE" strokeWidth="0.8" />
+      <path d="M112 138.5v7M108.8 142h6.4" stroke="#C5C8CE" strokeWidth="0.7" />
+      <rect x="104" y="188" width="22" height="28" rx="3" fill="#1A1C20" />
+      <rect x="118" y="194" width="58" height="16" rx="8" fill="url(#lock-handle)" />
+      <rect x="92" y="286" width="40" height="6" rx="1" fill="#101214" />
     </svg>
   );
 }
