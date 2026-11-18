@@ -137,7 +137,7 @@ export const PRODUCTS: Product[] = [
     id: "l-auto",
     category: "lock",
     lockKind: "auto",
-    name: "全自动智能锁",
+    name: "全自动",
     model: "MG-L1",
     blurb: "可以远程开锁，也可以远程上锁",
   },
@@ -145,7 +145,7 @@ export const PRODUCTS: Product[] = [
     id: "l-semi",
     category: "lock",
     lockKind: "semi",
-    name: "半自动智能锁",
+    name: "半自动",
     model: "MG-L2",
     blurb: "可以远程开锁，上锁需要在门内提把手",
   },
@@ -177,26 +177,16 @@ export function productOf(id: string) {
 export function kindLabel(kind: DeviceKind, lockKind?: LockKind) {
   if (kind === "companion") return "AI陪伴";
   if (kind === "pet") return "AI宠物";
-  return lockKind === "semi" ? "半自动智能锁" : "全自动智能锁";
+  return lockKind === "semi" ? "半自动" : "全自动";
 }
 
 function room(id: string, name: string): Room {
   return { id, name };
 }
 
-function log(text: string, time: string): DeviceLog {
-  return { id: rid(), text, time };
-}
-
 export function createSeed(): AppData {
   const homeId = "home-mine";
   const parentId = "home-parent";
-  const living = "room-living";
-  const bed = "room-bed";
-  const door = "room-door";
-  const companionId = "dev-companion";
-  const petId = "dev-pet";
-  const lockId = "dev-lock";
 
   return {
     user: null,
@@ -209,7 +199,7 @@ export function createSeed(): AppData {
         id: homeId,
         name: "我的家",
         members: ["我"],
-        rooms: [room(living, "客厅"), room(bed, "主卧"), room(door, "门口")],
+        rooms: [room("room-living", "客厅"), room("room-bed", "主卧"), room("room-door", "门口")],
       },
       {
         id: parentId,
@@ -218,105 +208,10 @@ export function createSeed(): AppData {
         rooms: [room("room-parent-living", "客厅"), room("room-parent-door", "门口")],
       },
     ],
-    devices: [
-      {
-        id: companionId,
-        productId: "c1",
-        kind: "companion",
-        name: "小光",
-        homeId,
-        roomId: living,
-        online: true,
-        on: true,
-        locked: false,
-        battery: 90,
-        volume: 60,
-        voice: "温柔",
-        snacks: 0,
-        offlineAlert: true,
-        shares: [],
-        lockUsers: [],
-        tempCodes: [],
-        logs: [log("已开机，音量 60", "11月18日 08:12")],
-      },
-      {
-        id: petId,
-        productId: "p1",
-        kind: "pet",
-        name: "团子",
-        homeId,
-        roomId: bed,
-        online: true,
-        on: true,
-        locked: false,
-        battery: 74,
-        volume: 40,
-        voice: "活泼",
-        snacks: 2,
-        offlineAlert: true,
-        shares: [],
-        lockUsers: [],
-        tempCodes: [],
-        logs: [log("在主卧睡醒了", "11月18日 07:40")],
-      },
-      {
-        id: lockId,
-        productId: "l-auto",
-        kind: "lock",
-        lockKind: "auto",
-        name: "入户门锁",
-        homeId,
-        roomId: door,
-        online: true,
-        on: true,
-        locked: true,
-        battery: 86,
-        volume: 30,
-        voice: "沉稳",
-        snacks: 0,
-        offlineAlert: true,
-        shares: ["13800001111"],
-        lockUsers: [
-          { id: "lu1", name: "管理员", method: "指纹" },
-          { id: "lu2", name: "家人", method: "密码" },
-        ],
-        tempCodes: [],
-        logs: [log("已上锁", "11月18日 09:02")],
-      },
-    ],
-    scenes: [
-      {
-        id: "scene-home",
-        homeId,
-        kind: "tap",
-        name: "回家",
-        enabled: true,
-        when: "点击执行",
-        actions: [
-          { deviceId: lockId, command: "lock", locked: false },
-          { deviceId: companionId, command: "power", on: true },
-        ],
-      },
-      {
-        id: "scene-night",
-        homeId,
-        kind: "auto",
-        name: "夜里关锁",
-        enabled: true,
-        when: "每天 23:00",
-        actions: [{ deviceId: lockId, command: "lock", locked: true }],
-      },
-    ],
+    devices: [],
+    scenes: [],
     groups: [],
     mails: [
-      {
-        id: "mail-1",
-        folder: "alarm",
-        title: "入户门锁已打开",
-        body: "入户门锁在今天上午被远程打开，随后已经重新上锁。如果不是你本人操作，请到门锁用户里检查权限。",
-        time: "11月18日 09:06",
-        read: false,
-      },
       {
         id: "mail-2",
         folder: "home",

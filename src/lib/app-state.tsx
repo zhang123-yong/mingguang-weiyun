@@ -20,7 +20,7 @@ import {
   type SceneAction,
 } from "@/lib/model";
 
-const STORAGE_KEY = "mingguang-home-v1";
+const STORAGE_KEY = "mingguang-home-v2";
 
 type AppStateValue = {
   data: AppData;

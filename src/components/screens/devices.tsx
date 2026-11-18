@@ -22,7 +22,6 @@ import {
   productOf,
   type Device,
   type DeviceKind,
-  type LockKind,
 } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 
@@ -81,12 +80,7 @@ export function AddDeviceScreen() {
           ))}
         </aside>
         <div className="min-w-0 flex-1 overflow-y-auto bg-white p-3">
-          {category === "lock" ? (
-            <>
-              <LockSection title="全自动" lockKind="auto" products={products} onOpen={(id) => push({ name: "pair", productId: id })} />
-              <LockSection title="半自动" lockKind="semi" products={products} onOpen={(id) => push({ name: "pair", productId: id })} />
-            </>
-          ) : products.length === 0 ? (
+          {products.length === 0 ? (
             <p className="px-2 py-8 text-center text-[13px] text-[#999]">没有匹配的产品</p>
           ) : (
             <ProductGrid products={products} onOpen={(id) => push({ name: "pair", productId: id })} />
@@ -94,30 +88,6 @@ export function AddDeviceScreen() {
         </div>
       </div>
     </div>
-  );
-}
-
-function LockSection({
-  title,
-  lockKind,
-  products,
-  onOpen,
-}: {
-  title: string;
-  lockKind: LockKind;
-  products: typeof PRODUCTS;
-  onOpen: (id: string) => void;
-}) {
-  const list = products.filter((product) => product.lockKind === lockKind);
-  return (
-    <section className="mb-4">
-      <h2 className="px-1 pb-2 text-[13px] font-medium text-[#888]">{title}</h2>
-      {list.length === 0 ? (
-        <p className="px-1 text-[12px] text-[#BBB]">没有匹配的产品</p>
-      ) : (
-        <ProductGrid products={list} onOpen={onOpen} />
-      )}
-    </section>
   );
 }
 
