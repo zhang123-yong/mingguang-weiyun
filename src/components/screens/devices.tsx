@@ -161,7 +161,7 @@ export function PairScreen({ productId }: { productId: string }) {
   const { data, addDevice } = useApp();
   const { pop, push, reset, notify } = useNav();
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "hotspot" | "wifi-pass" | "wifi-pick" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
+  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "wifi-reset" | "hotspot" | "wifi-pass" | "wifi-pick" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
   const [bluetoothReady, setBluetoothReady] = useState(false);
   const [phoneWifi, setPhoneWifi] = useState({ connected: false, ssid: "", band: "" });
   const [wifiPassword, setWifiPassword] = useState("");
@@ -243,6 +243,26 @@ export function PairScreen({ productId }: { productId: string }) {
         onHotspot={() => {
           setWifiAlert(false);
           setStep("hotspot");
+        }}
+        onReset={() => {
+          setWifiAlert(false);
+          setStep("wifi-reset");
+        }}
+      />
+    );
+  }
+
+  if (product.category === "lock" && step === "wifi-reset") {
+    return (
+      <WifiResetGuide
+        onClose={() => setStep("wifi")}
+        onHotspot={() => setStep("hotspot")}
+        onFast={() => {
+          if (phoneWifi.connected && phoneWifi.ssid) setStep("wifi-pass");
+          else {
+            setWifiAlert(true);
+            setStep("wifi");
+          }
         }}
       />
     );
@@ -469,6 +489,7 @@ function LockWifiScreen({
   onContinue,
   onConnect,
   onHotspot,
+  onReset,
 }: {
   alert: boolean;
   onClose: () => void;
@@ -476,8 +497,8 @@ function LockWifiScreen({
   onContinue: () => void;
   onConnect: () => void;
   onHotspot: () => void;
+  onReset: () => void;
 }) {
-  const [showReset, setShowReset] = useState(false);
   const [indicator, setIndicator] = useState(false);
   return (
     <div className="relative flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
@@ -492,54 +513,21 @@ function LockWifiScreen({
         <LockArtwork />
       </div>
       <p className="text-center text-[16px] leading-7">设备上电，确认设备正常工作，按照说明书指示进入配网状态</p>
-      {showReset ? (
-        <p className="mt-3 text-center text-[13px] leading-5 text-[#888]">长按键盘复位区，直到键盘灯慢闪，再点确认。</p>
-      ) : null}
       <button type="button" onClick={() => setIndicator(true)} className="mt-8 h-12 w-full rounded-xl bg-[#FF581C] text-[16px] text-white">
         确认键盘灯慢闪
       </button>
-      <button type="button" onClick={() => setShowReset((value) => !value)} className="mt-4 text-center text-[15px] text-[#2F7BFF]">
+      <button type="button" onClick={onReset} className="mt-4 text-center text-[15px] text-[#2F7BFF]">
         按步骤重置设备
       </button>
       {indicator && !alert ? (
-        <div className="absolute inset-0 z-20 flex flex-col justify-end bg-black/45">
-          <div role="dialog" aria-labelledby="indicator-title" className="rounded-t-[18px] bg-white px-5 pb-6 pt-3">
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="关闭"
-                onClick={() => setIndicator(false)}
-                className="absolute right-0 top-0 grid size-8 place-items-center text-[20px] leading-none text-[#999]"
-              >
-                ×
-              </button>
-              <h2 id="indicator-title" className="px-8 pt-1 text-center text-[16px] font-medium">
-                选择指示灯状态或听到提示音：
-              </h2>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={onHotspot}
-                className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4"
-              >
-                <span className="text-[15px]">热点配网</span>
-                <IndicatorBulb />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIndicator(false);
-                  onNext();
-                }}
-                className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4"
-              >
-                <span className="text-[15px]">Wi_Fi 快连</span>
-                <IndicatorBulb lit />
-              </button>
-            </div>
-          </div>
-        </div>
+        <IndicatorSheet
+          onClose={() => setIndicator(false)}
+          onHotspot={onHotspot}
+          onFast={() => {
+            setIndicator(false);
+            onNext();
+          }}
+        />
       ) : null}
       {alert ? (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 px-8">
@@ -560,6 +548,151 @@ function LockWifiScreen({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function IndicatorSheet({
+  onClose,
+  onHotspot,
+  onFast,
+}: {
+  onClose: () => void;
+  onHotspot: () => void;
+  onFast: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col justify-end bg-black/45">
+      <div role="dialog" aria-labelledby="indicator-title" className="rounded-t-[18px] bg-white px-5 pb-6 pt-3">
+        <div className="relative">
+          <button
+            type="button"
+            aria-label="关闭选项"
+            onClick={onClose}
+            className="absolute right-0 top-0 grid size-8 place-items-center text-[20px] leading-none text-[#999]"
+          >
+            ×
+          </button>
+          <h2 id="indicator-title" className="px-8 pt-1 text-center text-[16px] font-medium">
+            选择指示灯状态或听到提示音：
+          </h2>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button type="button" onClick={onHotspot} className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4">
+            <span className="text-[15px]">热点配网</span>
+            <IndicatorBulb />
+          </button>
+          <button type="button" onClick={onFast} className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4">
+            <span className="text-[15px]">Wi_Fi 快连</span>
+            <IndicatorBulb lit />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WifiResetGuide({
+  onClose,
+  onHotspot,
+  onFast,
+}: {
+  onClose: () => void;
+  onHotspot: () => void;
+  onFast: () => void;
+}) {
+  const [page, setPage] = useState<1 | 2>(1);
+  const [sheet, setSheet] = useState(false);
+  return (
+    <div className="relative flex h-full flex-col bg-white px-5 pb-6 pt-3 text-[#222]">
+      <div className="flex justify-end">
+        <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
+          ×
+        </button>
+      </div>
+      <h1 className="mt-2 text-[22px] font-semibold">重置设备</h1>
+      <div className="mt-6 flex h-[148px] items-center justify-center rounded-lg bg-[#F5F6F8]">
+        {page === 1 ? <BatteryInstallArt /> : <LockLineArt />}
+      </div>
+      <div className="mt-4 flex justify-center gap-3">
+        <StepDot n={1} on={page === 1} />
+        <StepDot n={2} on={page === 2} />
+      </div>
+      <p className="mt-5 text-[16px] leading-7">
+        {page === 1 ? "设备安装电池" : "按照纸质说明书操作，使设备进入配网状态"}
+      </p>
+      <div className="mt-auto flex gap-3">
+        {page === 2 ? (
+          <button type="button" onClick={() => setPage(1)} className="h-12 flex-1 rounded-xl border border-[#E6E6E6] bg-white text-[16px]">
+            上一步
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => (page === 1 ? setPage(2) : setSheet(true))}
+          className="h-12 flex-1 rounded-xl bg-[#FF581C] text-[16px] text-white"
+        >
+          下一步
+        </button>
+      </div>
+      {sheet ? <IndicatorSheet onClose={() => setSheet(false)} onHotspot={onHotspot} onFast={onFast} /> : null}
+    </div>
+  );
+}
+
+function StepDot({ n, on }: { n: number; on: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" aria-hidden>
+      <circle cx="12" cy="12" r="11" fill={on ? "#3A3A3A" : "#fff"} stroke={on ? "#3A3A3A" : "#D5D5D5"} strokeWidth="1" />
+      <text x="12" y="12" textAnchor="middle" dominantBaseline="central" fill={on ? "#fff" : "#C4C4C4"} fontSize="12">
+        {n}
+      </text>
+    </svg>
+  );
+}
+
+function BatteryInstallArt() {
+  return (
+    <svg viewBox="0 0 320 140" className="h-[92px] w-auto" aria-hidden>
+      <path d="M72 34h86l-14 76H86z" fill="none" stroke="#C6C6C6" strokeWidth="1.6" strokeLinejoin="round" />
+      <rect x="96" y="88" width="36" height="14" rx="3" fill="none" stroke="#C6C6C6" strokeWidth="1.4" />
+      <path d="M186 72H162" fill="none" stroke="#C6C6C6" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M170 64l-10 8 10 8" fill="none" stroke="#C6C6C6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      {[0, 1, 2, 3].map((index) => (
+        <g key={index} transform={`translate(206 ${18 + index * 28})`}>
+          <rect width="62" height="20" rx="3" fill="none" stroke="#C6C6C6" strokeWidth="1.4" />
+          <rect x="62" y="6" width="5" height="8" rx="1" fill="none" stroke="#C6C6C6" strokeWidth="1.2" />
+          <path d="M24 15l7-9h-4l5 9h4l-8 9h4z" fill="none" stroke="#C6C6C6" strokeWidth="1.2" strokeLinejoin="round" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function LockLineArt() {
+  return (
+    <svg viewBox="0 0 220 120" className="h-[96px] w-auto" aria-hidden>
+      <rect x="78" y="6" width="48" height="108" rx="8" fill="none" stroke="#C6C6C6" strokeWidth="1.6" />
+      <rect x="90" y="14" width="24" height="12" rx="2" fill="none" stroke="#C6C6C6" strokeWidth="1.2" />
+      <circle cx="102" cy="20" r="2.2" fill="#3DDC84" />
+      {[0, 1, 2, 3].map((row) =>
+        [0, 1, 2].map((col) => (
+          <rect
+            key={`${row}-${col}`}
+            x={90 + col * 9}
+            y={32 + row * 10}
+            width="6"
+            height="6"
+            rx="1.2"
+            fill="none"
+            stroke="#C6C6C6"
+            strokeWidth="1"
+          />
+        )),
+      )}
+      <circle cx="102" cy="80" r="7" fill="none" stroke="#C6C6C6" strokeWidth="1.3" />
+      <circle cx="102" cy="80" r="3" fill="none" stroke="#C6C6C6" strokeWidth="1" />
+      <path d="M120 74h46a6 6 0 0 1 0 12h-46" fill="none" stroke="#C6C6C6" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
   );
 }
 
