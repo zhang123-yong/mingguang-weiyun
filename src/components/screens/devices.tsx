@@ -207,7 +207,7 @@ export function PairScreen({ productId }: { productId: string }) {
       <NetworkChoiceScreen
         onBack={() => setStep("guide")}
         onBluetooth={() => {
-          setBluetoothReady(true);
+          setBluetoothReady(false);
           setStep("guide");
         }}
         onWifi={() => setStep("wifi")}
@@ -229,11 +229,9 @@ export function PairScreen({ productId }: { productId: string }) {
       <LockResetScreen
         initialReady={bluetoothReady}
         showReset={step === "slow"}
-        onClose={() => (bluetoothReady ? setStep("choose") : pop())}
-        onNext={() => {
-          setBluetoothReady(true);
-          setStep("choose");
-        }}
+        onClose={pop}
+        onPickNetwork={() => setStep("choose")}
+        onNext={() => setStep("search")}
         onReset={() => setStep("bt1")}
       />
     );
@@ -577,12 +575,14 @@ function LockResetScreen({
   initialReady = false,
   showReset,
   onClose,
+  onPickNetwork,
   onNext,
   onReset,
 }: {
   initialReady?: boolean;
   showReset: boolean;
   onClose: () => void;
+  onPickNetwork: () => void;
   onNext: () => void;
   onReset: () => void;
 }) {
@@ -594,7 +594,9 @@ function LockResetScreen({
         <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
           ×
         </button>
-        <span className="rounded-full bg-[#F3F4F6] px-4 py-1.5 text-[14px] text-[#666]">蓝牙</span>
+        <button type="button" onClick={onPickNetwork} className="rounded-full bg-[#F3F4F6] px-4 py-1.5 text-[14px] text-[#666]">
+          蓝牙
+        </button>
       </div>
       <h1 className="mt-4 text-[28px] font-semibold tracking-tight">重置设备</h1>
       <div className="flex flex-1 items-center justify-center py-4">
