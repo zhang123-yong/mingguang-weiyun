@@ -134,20 +134,25 @@ export const PRODUCTS: Product[] = [
     blurb: "出门迎接，在家巡一圈",
   },
   {
-    id: "l-auto",
+    id: "l-door",
     category: "lock",
-    lockKind: "auto",
-    name: "全自动",
+    name: "门锁",
     model: "MG-L1",
-    blurb: "可以远程开锁，也可以远程上锁",
+    blurb: "智能门锁",
   },
   {
-    id: "l-semi",
+    id: "l-gw",
     category: "lock",
-    lockKind: "semi",
-    name: "半自动",
+    name: "门锁（网关版）",
     model: "MG-L2",
-    blurb: "可以远程开锁，上锁需要在门内提把手",
+    blurb: "通过网关连接",
+  },
+  {
+    id: "l-nb",
+    category: "lock",
+    name: "门锁（NB-IoT）",
+    model: "MG-L3",
+    blurb: "NB-IoT 门锁",
   },
 ];
 
@@ -177,7 +182,7 @@ export function productOf(id: string) {
 export function kindLabel(kind: DeviceKind, lockKind?: LockKind) {
   if (kind === "companion") return "AI陪伴";
   if (kind === "pet") return "AI宠物";
-  return lockKind === "semi" ? "半自动" : "全自动";
+  return lockKind === "semi" ? "半自动" : "智能门锁";
 }
 
 function room(id: string, name: string): Room {

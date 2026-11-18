@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AudioLines, Bluetooth, Bot, Cat, Dog, KeyRound, Lamp, LockKeyhole, Search, Wifi, type LucideIcon } from "lucide-react";
+import { AudioLines, Bluetooth, Bot, Cat, Dog, Lamp, Search, Wifi, type LucideIcon } from "lucide-react";
 import {
   ConfirmDialog,
   DeviceGlyph,
@@ -103,8 +103,6 @@ const PRODUCT_MARKS: Record<string, { icon: LucideIcon; bg: string; fg: string }
   c2: { icon: Lamp, bg: "#FFF4D6", fg: "#D39A00" },
   p1: { icon: Cat, bg: "#F3E8FF", fg: "#8B5CF6" },
   p2: { icon: Dog, bg: "#E7F8EE", fg: "#22A35A" },
-  "l-auto": { icon: LockKeyhole, bg: "#FFF1EA", fg: "#FF581C" },
-  "l-semi": { icon: KeyRound, bg: "#E7F6F5", fg: "#0F9B94" },
 };
 
 function ProductGrid({
@@ -114,6 +112,24 @@ function ProductGrid({
   products: typeof PRODUCTS;
   onOpen: (id: string) => void;
 }) {
+  if (products.every((product) => product.category === "lock")) {
+    return (
+      <div className="grid grid-cols-3 gap-2 pt-2">
+        {products.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => onOpen(product.id)}
+            className="flex flex-col items-center px-1 text-center"
+          >
+            <LockCatalogIcon id={product.id} />
+            <span className="mt-2 text-[12px] leading-4 text-[#333]">{product.name}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 gap-3">
       {products.map((product) => {
@@ -324,6 +340,36 @@ export function PairScreen({ productId }: { productId: string }) {
 }
 
 const RESET_STEPS = ["设备上电", "打开手机蓝牙", "按产品说明书使设备进入蓝牙配网状态"];
+
+function LockCatalogIcon({ id }: { id: string }) {
+  if (id === "l-gw") {
+    return (
+      <svg viewBox="0 0 64 64" className="h-16 w-12" aria-hidden>
+        <rect x="22" y="4" width="20" height="56" rx="3" fill="#F4F5F7" stroke="#D5D8DE" />
+        <rect x="26" y="10" width="12" height="8" rx="1" fill="#E6E8EC" />
+        <rect x="27" y="22" width="10" height="16" rx="1" fill="#ECEEF2" />
+        <circle cx="32" cy="46" r="3" fill="#E1E4EA" />
+      </svg>
+    );
+  }
+  if (id === "l-nb") {
+    return (
+      <svg viewBox="0 0 64 64" className="h-16 w-14" aria-hidden>
+        <rect x="18" y="6" width="22" height="52" rx="3" fill="#F7F8FA" stroke="#E2E4E8" />
+        <rect x="22" y="12" width="14" height="18" rx="1" fill="#EEF0F3" />
+        <circle cx="29" cy="40" r="3" fill="#E6E8ED" />
+        <rect x="36" y="34" width="18" height="8" rx="4" fill="#D9DDE3" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 72 48" className="mt-3 h-12 w-16" aria-hidden>
+      <rect x="8" y="16" width="34" height="16" rx="2" fill="#2C3036" />
+      <rect x="38" y="20" width="26" height="8" rx="4" fill="#3A3E44" />
+      <circle cx="18" cy="24" r="2" fill="#6B7078" />
+    </svg>
+  );
+}
 
 function NetworkChoiceScreen({
   onBack,

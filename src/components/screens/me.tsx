@@ -665,13 +665,13 @@ export function ScanScreen() {
       {found ? (
         <div className="absolute inset-0 z-20 flex items-end bg-black/45" onClick={() => setFound(false)}>
           <div className="w-full rounded-t-3xl bg-white px-4 pb-6 pt-5" onClick={(event) => event.stopPropagation()}>
-            <p className="text-center text-[16px] font-medium">识别到全自动</p>
+            <p className="text-center text-[16px] font-medium">识别到门锁</p>
             <p className="mt-2 text-center text-[13px] text-[#888]">是否添加到当前家庭？</p>
             <div className="mt-4">
               <PrimaryButton
                 onClick={() => {
                   notify("继续完成命名和房间");
-                  push({ name: "pair", productId: "l-auto" });
+                  push({ name: "pair", productId: "l-door" });
                 }}
               >
                 去添加
