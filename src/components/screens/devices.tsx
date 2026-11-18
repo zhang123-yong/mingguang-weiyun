@@ -161,7 +161,7 @@ export function PairScreen({ productId }: { productId: string }) {
   const { data, addDevice } = useApp();
   const { pop, push, reset, notify } = useNav();
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "wifi-pass" | "wifi-pick" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
+  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "hotspot" | "wifi-pass" | "wifi-pick" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
   const [bluetoothReady, setBluetoothReady] = useState(false);
   const [phoneWifi, setPhoneWifi] = useState({ connected: false, ssid: "", band: "" });
   const [wifiPassword, setWifiPassword] = useState("");
@@ -240,8 +240,16 @@ export function PairScreen({ productId }: { productId: string }) {
           setWifiAlert(false);
           setStep("wifi-pick");
         }}
+        onHotspot={() => {
+          setWifiAlert(false);
+          setStep("hotspot");
+        }}
       />
     );
+  }
+
+  if (product.category === "lock" && step === "hotspot") {
+    return <HotspotScreen onClose={() => setStep("wifi")} onNext={() => setStep("wifi-pass")} />;
   }
 
   if (product.category === "lock" && step === "wifi-pick") {
@@ -460,14 +468,17 @@ function LockWifiScreen({
   onNext,
   onContinue,
   onConnect,
+  onHotspot,
 }: {
   alert: boolean;
   onClose: () => void;
   onNext: () => void;
   onContinue: () => void;
   onConnect: () => void;
+  onHotspot: () => void;
 }) {
   const [showReset, setShowReset] = useState(false);
+  const [indicator, setIndicator] = useState(false);
   return (
     <div className="relative flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
       <div className="flex items-center justify-between">
@@ -484,12 +495,52 @@ function LockWifiScreen({
       {showReset ? (
         <p className="mt-3 text-center text-[13px] leading-5 text-[#888]">长按键盘复位区，直到键盘灯慢闪，再点确认。</p>
       ) : null}
-      <button type="button" onClick={onNext} className="mt-8 h-12 w-full rounded-xl bg-[#FF581C] text-[16px] text-white">
+      <button type="button" onClick={() => setIndicator(true)} className="mt-8 h-12 w-full rounded-xl bg-[#FF581C] text-[16px] text-white">
         确认键盘灯慢闪
       </button>
       <button type="button" onClick={() => setShowReset((value) => !value)} className="mt-4 text-center text-[15px] text-[#2F7BFF]">
         按步骤重置设备
       </button>
+      {indicator && !alert ? (
+        <div className="absolute inset-0 z-20 flex flex-col justify-end bg-black/45">
+          <div role="dialog" aria-labelledby="indicator-title" className="rounded-t-[18px] bg-white px-5 pb-6 pt-3">
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setIndicator(false)}
+                className="absolute right-0 top-0 grid size-8 place-items-center text-[20px] leading-none text-[#999]"
+              >
+                ×
+              </button>
+              <h2 id="indicator-title" className="px-8 pt-1 text-center text-[16px] font-medium">
+                选择指示灯状态或听到提示音：
+              </h2>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={onHotspot}
+                className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4"
+              >
+                <span className="text-[15px]">热点配网</span>
+                <IndicatorBulb />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIndicator(false);
+                  onNext();
+                }}
+                className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4"
+              >
+                <span className="text-[15px]">Wi_Fi 快连</span>
+                <IndicatorBulb lit />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {alert ? (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 px-8">
           <div role="dialog" aria-labelledby="wifi-alert-title" className="w-full max-w-[300px] overflow-hidden rounded-2xl bg-white">
@@ -508,6 +559,43 @@ function LockWifiScreen({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function IndicatorBulb({ lit = false }: { lit?: boolean }) {
+  return (
+    <svg viewBox="0 0 64 72" className="mt-3 h-11 w-10" aria-hidden>
+      {lit ? <ellipse cx="32" cy="28" rx="22" ry="22" fill="#FFE38A" opacity="0.7" /> : null}
+      <path
+        d="M32 8c-9.4 0-17 7.4-17 16.6 0 6 3.2 11.3 8.1 14.2 1 .6 1.6 1.7 1.6 2.9V46h14.6v-4.3c0-1.2.6-2.3 1.6-2.9 4.9-2.9 8.1-8.2 8.1-14.2C49 15.4 41.4 8 32 8z"
+        fill={lit ? "#F6C31A" : "#F6E3A4"}
+      />
+      <path d="M27 34c1.2 2 2.2 3.2 5 3.2s3.8-1.2 5-3.2" fill="none" stroke={lit ? "#E2A400" : "#E7D7A2"} strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="25" y="48" width="14" height="3.2" rx="1" fill="#E4E4E4" />
+      <rect x="26.2" y="52.4" width="11.6" height="3" rx="1" fill="#D5D5D5" />
+      <rect x="27.4" y="56.6" width="9.2" height="3" rx="1" fill="#C8C8C8" />
+    </svg>
+  );
+}
+
+function HotspotScreen({ onClose, onNext }: { onClose: () => void; onNext: () => void }) {
+  return (
+    <div className="flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
+      <div className="flex items-center justify-between">
+        <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
+          ×
+        </button>
+        <span className="rounded-full bg-[#F3F4F6] px-4 py-1.5 text-[14px] text-[#666]">热点</span>
+      </div>
+      <h1 className="mt-4 text-[28px] font-semibold tracking-tight">连接设备热点</h1>
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <IndicatorBulb />
+        <p className="mt-6 text-[16px] leading-7">请把手机 Wi-Fi 连到名称以 SmartLife 开头的设备热点，连上后返回继续。</p>
+      </div>
+      <button type="button" onClick={onNext} className="h-12 w-full rounded-xl bg-[#FF581C] text-[16px] text-white">
+        已连接，下一步
+      </button>
     </div>
   );
 }
