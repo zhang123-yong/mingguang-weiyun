@@ -305,10 +305,13 @@ function LockResetScreen({
         <p className="text-[16px]">请按以下步骤完成设置</p>
         <ol className="mt-3 space-y-2">
           {RESET_STEPS.map((text, index) => (
-            <li key={text} className="flex gap-2 text-[15px] leading-6 text-[#333]">
-              <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-[#C8C8C8] text-[11px] text-[#888]">
-                {index + 1}
-              </span>
+            <li key={text} className="flex items-center gap-2 text-[15px] leading-6 text-[#333]">
+              <svg viewBox="0 0 20 20" className="size-5 shrink-0 font-sans" aria-hidden>
+                <circle cx="10" cy="10" r="9" fill="none" stroke="#C8C8C8" strokeWidth="1" />
+                <text x="10" y="10" textAnchor="middle" dominantBaseline="central" fill="#888" fontSize="11">
+                  {index + 1}
+                </text>
+              </svg>
               <span>{text}</span>
             </li>
           ))}
@@ -317,10 +320,13 @@ function LockResetScreen({
           <p className="mt-3 text-[13px] leading-5 text-[#888]">长按锁体复位键 5 秒，听到提示音后松开，锁端进入蓝牙配网。</p>
         ) : null}
       </div>
-      <button type="button" onClick={() => setReady((value) => !value)} className="mt-8 flex items-center justify-center gap-2 text-[15px]">
-        <span className={`grid size-[18px] place-items-center rounded-full border ${ready ? "border-[#FF581C] bg-[#FF581C] text-white" : "border-[#CFCFCF]"}`}>
-          {ready ? "✓" : ""}
-        </span>
+      <button type="button" onClick={() => setReady((value) => !value)} className="mx-auto mt-8 flex w-fit items-center justify-center gap-2 self-center text-[15px]">
+        <svg viewBox="0 0 20 20" className="size-5 shrink-0" aria-hidden>
+          <circle cx="10" cy="10" r="9" fill={ready ? "#FF581C" : "none"} stroke={ready ? "#FF581C" : "#CFCFCF"} strokeWidth="1" />
+          {ready ? (
+            <path d="M6.1 10.3 8.7 12.9 13.9 7.4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          ) : null}
+        </svg>
         启动蓝牙配网
       </button>
       <button
