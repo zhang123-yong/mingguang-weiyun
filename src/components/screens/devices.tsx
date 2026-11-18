@@ -143,9 +143,9 @@ function ProductGrid({
 export function PairScreen({ productId }: { productId: string }) {
   const product = productOf(productId);
   const { data, addDevice } = useApp();
-  const { pop, reset, notify } = useNav();
+  const { pop, push, reset, notify } = useNav();
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "search" | "found" | "name">(
+  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">(
     productOf(productId)?.category === "lock" ? "choose" : "guide",
   );
   const [deviceName, setDeviceName] = useState(product?.name ?? "");
@@ -154,6 +154,12 @@ export function PairScreen({ productId }: { productId: string }) {
   useEffect(() => {
     if (step !== "search") return;
     const timer = window.setTimeout(() => setStep("found"), 1600);
+    return () => window.clearTimeout(timer);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "connecting") return;
+    const timer = window.setTimeout(() => setStep("failed"), 2200);
     return () => window.clearTimeout(timer);
   }, [step]);
 
@@ -207,7 +213,33 @@ export function PairScreen({ productId }: { productId: string }) {
         showReset={step === "slow"}
         onClose={() => setStep("choose")}
         onNext={() => setStep("search")}
-        onReset={() => setStep(step === "slow" ? "guide" : "slow")}
+        onReset={() => setStep("bt1")}
+      />
+    );
+  }
+
+  if (product.category === "lock" && (step === "bt1" || step === "bt2")) {
+    return (
+      <BluetoothStepScreen
+        page={step}
+        onClose={() => setStep("guide")}
+        onPrev={() => setStep("bt1")}
+        onNext={() => setStep(step === "bt1" ? "bt2" : "connecting")}
+      />
+    );
+  }
+
+  if (product.category === "lock" && step === "connecting") {
+    return <ConnectingScreen onClose={() => setStep("bt2")} />;
+  }
+
+  if (product.category === "lock" && step === "failed") {
+    return (
+      <PairFailedScreen
+        onClose={() => setStep("guide")}
+        onRetry={() => setStep("bt1")}
+        onOther={() => setStep("choose")}
+        onFeedback={() => push({ name: "feedback" })}
       />
     );
   }
@@ -383,6 +415,133 @@ function LockWifiScreen({
   );
 }
 
+function BluetoothStepScreen({
+  page,
+  onClose,
+  onPrev,
+  onNext,
+}: {
+  page: "bt1" | "bt2";
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const first = page === "bt1";
+  return (
+    <div className="flex h-full flex-col bg-white px-5 pb-6 pt-3 text-[#222]">
+      <div className="flex items-center justify-end">
+        <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
+          ×
+        </button>
+      </div>
+      <h1 className="text-[22px] font-semibold">重置设备</h1>
+      <div className="mt-6 flex h-[168px] items-center justify-center rounded-xl bg-[#F6F7F8]">
+        {first ? <BatteryPhoneArt /> : <LockArtwork tone="gold" className="h-[148px] w-auto" />}
+      </div>
+      <div className="mt-4 flex justify-center gap-3">
+        {[1, 2].map((number) => {
+          const on = (first && number === 1) || (!first && number === 2);
+          return (
+            <span
+              key={number}
+              className={`grid size-6 place-items-center rounded-full text-[12px] leading-none ${on ? "bg-[#3A3A3A] text-white" : "border border-[#D0D0D0] text-[#B0B0B0]"}`}
+            >
+              {number}
+            </span>
+          );
+        })}
+      </div>
+      <p className="mt-5 text-center text-[16px] leading-7">
+        {first ? "请将设备装好电池，同时确保手机蓝牙打开" : "按产品说明书使设备进入蓝牙配网状态"}
+      </p>
+      <div className="mt-auto flex gap-3">
+        {first ? null : (
+          <button type="button" onClick={onPrev} className="h-12 flex-1 rounded-xl border border-[#E6E6E6] bg-white text-[16px]">
+            上一步
+          </button>
+        )}
+        <button type="button" onClick={onNext} className="h-12 flex-1 rounded-xl bg-[#FF581C] text-[16px] text-white">
+          下一步
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BatteryPhoneArt() {
+  return (
+    <svg viewBox="0 0 280 120" className="h-28 w-auto" aria-hidden>
+      <rect x="78" y="18" width="22" height="78" rx="4" fill="#C4A574" />
+      <rect x="74" y="78" width="36" height="10" rx="2" fill="#8E8E8E" />
+      <path d="M108 28l-8 16h8l-6 18 16-22h-8l6-12z" fill="#F5C518" />
+      <rect x="168" y="16" width="46" height="82" rx="6" fill="none" stroke="#333" strokeWidth="2" />
+      <rect x="176" y="24" width="30" height="58" rx="2" fill="#FFF" />
+      <path d="M198 8c8 6 12 14 12 22" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" />
+      <path d="M206 4c10 8 16 18 16 30" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ConnectingScreen({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="flex h-full flex-col bg-white px-6 pt-3 text-[#222]">
+      <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center self-start text-[22px] leading-none">
+        ×
+      </button>
+      <h1 className="mt-10 text-center text-[22px] font-semibold">正在连接设备</h1>
+      <p className="mt-2 text-center text-[14px] text-[#888]">保持设备处于通电状态</p>
+      <div className="mt-16 flex justify-center">
+        <span className="relative grid size-24 place-items-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-[#E8F1FF]" />
+          <span className="absolute inset-3 rounded-full bg-[#F3F7FF]" />
+          <svg viewBox="0 0 40 64" className="relative h-14 w-auto" aria-hidden>
+            <rect x="6" y="4" width="28" height="54" rx="4" fill="none" stroke="#8AA0B8" strokeWidth="2" />
+            <rect x="12" y="10" width="16" height="36" rx="1" fill="#F7FBFF" />
+          </svg>
+        </span>
+      </div>
+      <div className="mx-auto mt-10 h-1 w-48 overflow-hidden rounded-full bg-[#E6E6E6]">
+        <div className="h-full w-1/2 animate-pulse rounded-full bg-[#FF581C]" />
+      </div>
+    </div>
+  );
+}
+
+function PairFailedScreen({
+  onClose,
+  onRetry,
+  onOther,
+  onFeedback,
+}: {
+  onClose: () => void;
+  onRetry: () => void;
+  onOther: () => void;
+  onFeedback: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col bg-white px-6 pb-8 pt-3 text-[#222]">
+      <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center self-start text-[22px] leading-none">
+        ×
+      </button>
+      <h1 className="mt-8 text-[22px] font-semibold leading-8">设备添加失败</h1>
+      <p className="mt-1 text-[22px] font-semibold leading-8">请排查以下问题后重试</p>
+      <ul className="mt-6 space-y-3 text-[15px] leading-6 text-[#555]">
+        <li>· 设备通电，并处于重置状态</li>
+        <li>· 请确保手机在设备附近</li>
+      </ul>
+      <button type="button" onClick={onRetry} className="mt-auto h-12 w-full rounded-xl bg-[#FF581C] text-[16px] text-white">
+        按步骤重试
+      </button>
+      <button type="button" onClick={onOther} className="mt-3 h-12 w-full rounded-xl bg-[#F3F4F6] text-[16px]">
+        尝试其他方式
+      </button>
+      <button type="button" onClick={onFeedback} className="mt-4 text-center text-[14px] text-[#888]">
+        反馈问题
+      </button>
+    </div>
+  );
+}
+
 function LockResetScreen({
   initialReady = false,
   showReset,
@@ -453,25 +612,27 @@ function LockResetScreen({
   );
 }
 
-function LockArtwork() {
+function LockArtwork({ tone = "black", className = "h-[236px] w-auto" }: { tone?: "black" | "gold"; className?: string }) {
+  const gold = tone === "gold";
+  const bodyId = gold ? "lock-body-gold" : "lock-body-black";
   return (
-    <svg viewBox="0 0 220 320" className="h-[236px] w-auto" aria-hidden>
+    <svg viewBox="0 0 220 320" className={className} aria-hidden>
       <defs>
-        <linearGradient id="lock-body" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#4E535B" />
-          <stop offset="0.35" stopColor="#2A2E34" />
-          <stop offset="1" stopColor="#15171A" />
+        <linearGradient id={bodyId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={gold ? "#E7D3A8" : "#4E535B"} />
+          <stop offset="0.35" stopColor={gold ? "#C4A36A" : "#2A2E34"} />
+          <stop offset="1" stopColor={gold ? "#8C7044" : "#15171A"} />
         </linearGradient>
         <linearGradient id="lock-handle" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#6B7078" />
-          <stop offset="1" stopColor="#2C3036" />
+          <stop offset="0" stopColor={gold ? "#F2F2F2" : "#6B7078"} />
+          <stop offset="1" stopColor={gold ? "#A7A7A7" : "#2C3036"} />
         </linearGradient>
         <linearGradient id="lock-key" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#3C4148" />
-          <stop offset="1" stopColor="#23272C" />
+          <stop offset="0" stopColor={gold ? "#F3E6C8" : "#3C4148"} />
+          <stop offset="1" stopColor={gold ? "#CDB07A" : "#23272C"} />
         </linearGradient>
       </defs>
-      <rect x="86" y="16" width="52" height="288" rx="8" fill="url(#lock-body)" />
+      <rect x="86" y="16" width="52" height="288" rx="8" fill={`url(#${bodyId})`} />
       <rect x="94" y="28" width="36" height="22" rx="2" fill="#101114" />
       <rect x="100" y="34" width="18" height="8" rx="1" fill="#1C2830" />
       <circle cx="112" cy="38" r="1.4" fill="#3DDC84" />
