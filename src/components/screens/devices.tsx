@@ -179,6 +179,18 @@ export function PairScreen({ productId }: { productId: string }) {
     reset({ name: "tabs" });
   }
 
+  if (product.category === "lock" && (step === "guide" || step === "slow")) {
+    return (
+      <LockResetScreen
+        variant={product.lockKind === "semi" ? "semi" : "auto"}
+        showReset={step === "slow"}
+        onClose={pop}
+        onNext={() => setStep("search")}
+        onReset={() => setStep(step === "slow" ? "guide" : "slow")}
+      />
+    );
+  }
+
   return (
     <Page title={product.name} onBack={pop}>
       {step === "guide" || step === "slow" ? (
@@ -250,6 +262,139 @@ export function PairScreen({ productId }: { productId: string }) {
         </div>
       ) : null}
     </Page>
+  );
+}
+
+const RESET_STEPS = ["设备上电", "打开手机蓝牙", "按产品说明书使设备进入蓝牙配网状态"];
+
+function LockResetScreen({
+  variant,
+  showReset,
+  onClose,
+  onNext,
+  onReset,
+}: {
+  variant: "auto" | "semi";
+  showReset: boolean;
+  onClose: () => void;
+  onNext: () => void;
+  onReset: () => void;
+}) {
+  const [ready, setReady] = useState(false);
+  const [bluetoothOn, setBluetoothOn] = useState(false);
+
+  return (
+    <div className="flex h-full flex-col bg-white px-6 pb-6 pt-3 text-[#222]">
+      <div className="flex items-center justify-between">
+        <button type="button" aria-label="关闭" onClick={onClose} className="grid size-9 place-items-center text-[22px] leading-none">
+          ×
+        </button>
+        <button
+          type="button"
+          onClick={() => setBluetoothOn((on) => !on)}
+          className={`rounded-full px-4 py-1.5 text-[14px] ${bluetoothOn ? "bg-[#EAF3FF] text-[#2F7BFF]" : "bg-[#F3F4F6] text-[#666]"}`}
+        >
+          蓝牙
+        </button>
+      </div>
+      <h1 className="mt-4 text-[28px] font-semibold tracking-tight">重置设备</h1>
+      <div className="flex flex-1 items-center justify-center py-4">
+        <LockArtwork variant={variant} />
+      </div>
+      <div>
+        <p className="text-[16px]">请按以下步骤完成设置</p>
+        <ol className="mt-3 space-y-2">
+          {RESET_STEPS.map((text, index) => (
+            <li key={text} className="flex gap-2 text-[15px] leading-6 text-[#333]">
+              <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-[#C8C8C8] text-[11px] text-[#888]">
+                {index + 1}
+              </span>
+              <span>{text}</span>
+            </li>
+          ))}
+        </ol>
+        {showReset ? (
+          <p className="mt-3 text-[13px] leading-5 text-[#888]">长按锁体复位键 5 秒，听到提示音后松开，锁端进入蓝牙配网。</p>
+        ) : null}
+      </div>
+      <button type="button" onClick={() => setReady((value) => !value)} className="mt-8 flex items-center justify-center gap-2 text-[15px]">
+        <span className={`grid size-[18px] place-items-center rounded-full border ${ready ? "border-[#FF581C] bg-[#FF581C] text-white" : "border-[#CFCFCF]"}`}>
+          {ready ? "✓" : ""}
+        </span>
+        启动蓝牙配网
+      </button>
+      <button
+        type="button"
+        disabled={!ready}
+        onClick={onNext}
+        className={`mt-4 h-12 w-full rounded-xl text-[16px] ${ready ? "bg-[#FF581C] text-white" : "bg-[#FDECEA] text-[#F3C6BE]"}`}
+      >
+        下一步
+      </button>
+      <button type="button" onClick={onReset} className="mt-4 text-center text-[15px] text-[#2F7BFF]">
+        按步骤重置设备
+      </button>
+    </div>
+  );
+}
+
+function LockArtwork({ variant }: { variant: "auto" | "semi" }) {
+  const auto = variant === "auto";
+  const body = auto ? "url(#lock-body-auto)" : "url(#lock-body-semi)";
+  const plate = auto ? "#1C1E22" : "#F4F5F7";
+  const key = auto ? "#3A3E46" : "#D5D8DE";
+  const ink = auto ? "#C5C8CE" : "#5E6570";
+  return (
+    <svg viewBox="0 0 220 300" className="h-[228px] w-auto" aria-hidden>
+      <defs>
+        <linearGradient id="lock-body-auto" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#5A5E66" />
+          <stop offset="0.4" stopColor="#2C3036" />
+          <stop offset="1" stopColor="#141618" />
+        </linearGradient>
+        <linearGradient id="lock-body-semi" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#F7F8FA" />
+          <stop offset="0.5" stopColor="#C5CAD2" />
+          <stop offset="1" stopColor="#8B929C" />
+        </linearGradient>
+        <linearGradient id="lock-handle" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={auto ? "#6A6F78" : "#FFFFFF"} />
+          <stop offset="1" stopColor={auto ? "#2A2E34" : "#A7ADB6"} />
+        </linearGradient>
+      </defs>
+      <rect x="78" y="18" width="64" height="264" rx="10" fill={body} />
+      <rect x="86" y="30" width="48" height="14" rx="3" fill={auto ? "#101114" : "#E6E8EC"} />
+      <circle cx="110" cy="37" r="2" fill={auto ? "#35D07F" : "#FF581C"} />
+      {Array.from({ length: 12 }, (_, index) => {
+        const col = index % 3;
+        const row = Math.floor(index / 3);
+        return (
+          <rect
+            key={index}
+            x={90 + col * 16}
+            y={56 + row * 18}
+            width="12"
+            height="12"
+            rx={auto ? 2 : 6}
+            fill={key}
+          />
+        );
+      })}
+      <circle cx="110" cy="148" r="14" fill="none" stroke={ink} strokeWidth="1.4" />
+      <path d="M102 148c2-4 6-6 8-6s6 2 8 6c-2 4-6 6-8 6s-6-2-8-6z" fill="none" stroke={ink} strokeWidth="1.2" />
+      <path d="M106 148h8M110 144v8" stroke={ink} strokeWidth="1" />
+      {auto ? (
+        <g>
+          <rect x="118" y="196" width="62" height="18" rx="9" fill="url(#lock-handle)" />
+          <rect x="108" y="192" width="18" height="26" rx="4" fill={plate} />
+        </g>
+      ) : (
+        <g>
+          <circle cx="110" cy="210" r="18" fill="url(#lock-handle)" />
+          <circle cx="110" cy="210" r="7" fill={plate} />
+        </g>
+      )}
+    </svg>
   );
 }
 
