@@ -145,9 +145,8 @@ export function PairScreen({ productId }: { productId: string }) {
   const { data, addDevice } = useApp();
   const { pop, push, reset, notify } = useNav();
   const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
-  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">(
-    productOf(productId)?.category === "lock" ? "choose" : "guide",
-  );
+  const [step, setStep] = useState<"choose" | "guide" | "slow" | "wifi" | "bt1" | "bt2" | "connecting" | "failed" | "search" | "found" | "name">("guide");
+  const [bluetoothReady, setBluetoothReady] = useState(false);
   const [deviceName, setDeviceName] = useState(product?.name ?? "");
   const [roomId, setRoomId] = useState(home.rooms[0]?.id ?? "");
 
@@ -190,8 +189,11 @@ export function PairScreen({ productId }: { productId: string }) {
   if (product.category === "lock" && step === "choose") {
     return (
       <NetworkChoiceScreen
-        onBack={pop}
-        onBluetooth={() => setStep("guide")}
+        onBack={() => setStep("guide")}
+        onBluetooth={() => {
+          setBluetoothReady(true);
+          setStep("guide");
+        }}
         onWifi={() => setStep("wifi")}
       />
     );
@@ -209,10 +211,13 @@ export function PairScreen({ productId }: { productId: string }) {
   if (product.category === "lock" && (step === "guide" || step === "slow")) {
     return (
       <LockResetScreen
-        initialReady
+        initialReady={bluetoothReady}
         showReset={step === "slow"}
-        onClose={() => setStep("choose")}
-        onNext={() => setStep("search")}
+        onClose={() => (bluetoothReady ? setStep("choose") : pop())}
+        onNext={() => {
+          setBluetoothReady(true);
+          setStep("choose");
+        }}
         onReset={() => setStep("bt1")}
       />
     );
