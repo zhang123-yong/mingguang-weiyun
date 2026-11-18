@@ -36,50 +36,59 @@ export function AddDeviceScreen() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  const categories = CATEGORIES.filter((item) => item.name !== "智能门");
   const products = PRODUCTS.filter(
     (product) =>
       product.category === category &&
+      product.name !== "智能门" &&
+      product.name !== "可视门锁" &&
       (query.trim() === "" || product.name.includes(query.trim())),
   );
 
   return (
     <div className="flex h-full flex-col bg-[#F5F6F8] text-[#222]">
-      <header className="relative flex h-12 shrink-0 items-center justify-center bg-white px-12">
-        <button type="button" aria-label="返回" onClick={pop} className="absolute left-2 text-[14px] text-[#666]">返回</button>
-        <h1 className="text-[17px] font-medium">添加设备</h1>
+      <header className="relative flex h-12 shrink-0 items-center justify-center bg-white px-14">
+        <button type="button" aria-label="返回" onClick={pop} className="absolute left-3 text-[22px] leading-none text-[#222]">‹</button>
+        <h1 className="text-[17px] font-semibold">添加设备</h1>
+        <button type="button" onClick={() => push({ name: "scan" })} className="absolute right-3 text-[15px] text-[#222]">扫码</button>
       </header>
-      <div className="bg-white px-4 py-3">
-        <div className="flex h-10 items-center gap-2 rounded-full bg-[#F4F4F4] px-3">
-          <Search className="size-4 text-[#AAA]" />
+      <div className="bg-[#F5F6F8] px-6 pb-2 pt-4 text-center">
+        <p className="text-[16px] font-semibold">正在搜索附近设备</p>
+        <p className="mx-auto mt-2 max-w-[280px] text-[13px] leading-5 text-[#8A8A8A]">
+          请保证设备已上电，处于配网状态。演示搜索不会发现真实设备。
+        </p>
+        <div className="mx-auto mt-4 grid size-28 place-items-center">
+          <div className={`size-24 rounded-full border-[10px] border-[#E7EEF8] border-t-[#7EB6FF] ${discovering ? "animate-spin" : ""}`} />
+        </div>
+      </div>
+      <h2 className="bg-white px-4 pb-2 pt-3 text-[16px] font-semibold">手动添加</h2>
+      <div className="bg-white px-4 pb-3">
+        <div className="flex h-10 items-center gap-2 rounded-lg bg-[#F4F5F7] px-3">
+          <Search className="size-4 text-[#C5C5C5]" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索产品名称"
-            className="h-full min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+            placeholder="搜品类"
+            className="h-full min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-[#C5C5C5]"
           />
         </div>
-        <p className="mt-3 text-[12px] text-[#888]">
-          {discovering ? "正在搜索附近的设备…" : "附近没有可直接添加的设备，请从分类里选择。"}
-        </p>
       </div>
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-[96px] shrink-0 bg-[#F7F7F7]">
-          {CATEGORIES.map((item) => (
+      <div className="flex min-h-0 flex-1 border-t border-[#F0F0F0] bg-white">
+        <aside className="w-[88px] shrink-0 bg-[#F7F8FA]">
+          {categories.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setCategory(item.id)}
               className={`block w-full px-3 py-4 text-left text-[13px] ${
-                category === item.id
-                  ? "border-l-2 border-[#FF581C] bg-white font-medium text-[#FF581C]"
-                  : "text-[#555]"
+                category === item.id ? "bg-white font-semibold text-[#222]" : "text-[#666]"
               }`}
             >
               {item.name}
             </button>
           ))}
         </aside>
-        <div className="min-w-0 flex-1 overflow-y-auto bg-white p-3">
+        <div className="min-w-0 flex-1 overflow-y-auto p-3">
           {products.length === 0 ? (
             <p className="px-2 py-8 text-center text-[13px] text-[#999]">没有匹配的产品</p>
           ) : (
@@ -107,9 +116,8 @@ function ProductGrid({
           onClick={() => onOpen(product.id)}
           className="rounded-2xl bg-[#F7F8FA] px-3 py-4 text-left"
         >
-          <DeviceGlyph kind={product.category} />
+          <span className="block size-12 rounded-xl bg-[#F3F4F6]" />
           <span className="mt-3 block text-[14px] font-medium">{product.name}</span>
-          <span className="mt-1 block text-[12px] leading-5 text-[#888]">{product.blurb}</span>
         </button>
       ))}
     </div>
