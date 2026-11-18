@@ -140,20 +140,6 @@ export const PRODUCTS: Product[] = [
     model: "MG-L1",
     blurb: "智能门锁",
   },
-  {
-    id: "l-gw",
-    category: "lock",
-    name: "门锁（网关版）",
-    model: "MG-L2",
-    blurb: "通过网关连接",
-  },
-  {
-    id: "l-nb",
-    category: "lock",
-    name: "门锁（NB-IoT）",
-    model: "MG-L3",
-    blurb: "NB-IoT 门锁",
-  },
 ];
 
 export const ROOM_PRESETS = ["客厅", "主卧", "次卧", "书房", "餐厅", "厨房", "门口", "阳台"];

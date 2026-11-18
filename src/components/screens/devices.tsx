@@ -122,7 +122,7 @@ function ProductGrid({
             onClick={() => onOpen(product.id)}
             className="flex flex-col items-center px-1 text-center"
           >
-            <LockCatalogIcon id={product.id} />
+            <LockCatalogIcon />
             <span className="mt-2 text-[12px] leading-4 text-[#333]">{product.name}</span>
           </button>
         ))}
@@ -341,27 +341,7 @@ export function PairScreen({ productId }: { productId: string }) {
 
 const RESET_STEPS = ["设备上电", "打开手机蓝牙", "按产品说明书使设备进入蓝牙配网状态"];
 
-function LockCatalogIcon({ id }: { id: string }) {
-  if (id === "l-gw") {
-    return (
-      <svg viewBox="0 0 64 64" className="h-16 w-12" aria-hidden>
-        <rect x="22" y="4" width="20" height="56" rx="3" fill="#F4F5F7" stroke="#D5D8DE" />
-        <rect x="26" y="10" width="12" height="8" rx="1" fill="#E6E8EC" />
-        <rect x="27" y="22" width="10" height="16" rx="1" fill="#ECEEF2" />
-        <circle cx="32" cy="46" r="3" fill="#E1E4EA" />
-      </svg>
-    );
-  }
-  if (id === "l-nb") {
-    return (
-      <svg viewBox="0 0 64 64" className="h-16 w-14" aria-hidden>
-        <rect x="18" y="6" width="22" height="52" rx="3" fill="#F7F8FA" stroke="#E2E4E8" />
-        <rect x="22" y="12" width="14" height="18" rx="1" fill="#EEF0F3" />
-        <circle cx="29" cy="40" r="3" fill="#E6E8ED" />
-        <rect x="36" y="34" width="18" height="8" rx="4" fill="#D9DDE3" />
-      </svg>
-    );
-  }
+function LockCatalogIcon() {
   return (
     <svg viewBox="0 0 72 48" className="mt-3 h-12 w-16" aria-hidden>
       <rect x="8" y="16" width="34" height="16" rx="2" fill="#2C3036" />
