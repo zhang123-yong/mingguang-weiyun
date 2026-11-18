@@ -1,5 +1,6 @@
 {
-  "name": "mingguang",
+  "name": "mingguang-weiyun",
+  "description": "名光微云服务",
   "version": "0.1.0",
   "private": true,
   "scripts": {

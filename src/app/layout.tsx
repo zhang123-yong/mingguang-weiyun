@@ -25,8 +25,8 @@ const notoSansSc = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "名光智能",
-  description: "名光智能欢迎页。登录、注册，或使用第三方账号进入。",
+  title: "名光微云服务",
+  description: "名光微云服务。登录、注册，或使用第三方账号进入名光智能。",
 };
 
 export const viewport: Viewport = {
