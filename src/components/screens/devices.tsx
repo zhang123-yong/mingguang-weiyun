@@ -579,11 +579,11 @@ function IndicatorSheet({
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button type="button" onClick={onHotspot} className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4">
             <span className="text-[15px]">热点配网</span>
-            <IndicatorBulb />
+            <IndicatorBulb blink />
           </button>
           <button type="button" onClick={onFast} className="flex flex-col items-center rounded-xl bg-[#F7F8FA] px-3 pb-4 pt-4">
             <span className="text-[15px]">Wi_Fi 快连</span>
-            <IndicatorBulb lit />
+            <IndicatorBulb blink lit />
           </button>
         </div>
       </div>
@@ -696,15 +696,16 @@ function LockLineArt() {
   );
 }
 
-function IndicatorBulb({ lit = false }: { lit?: boolean }) {
+function IndicatorBulb({ lit = false, blink = false }: { lit?: boolean; blink?: boolean }) {
   return (
-    <svg viewBox="0 0 64 72" className="mt-3 h-11 w-10" aria-hidden>
-      {lit ? <ellipse cx="32" cy="28" rx="22" ry="22" fill="#FFE38A" opacity="0.7" /> : null}
+    <svg viewBox="0 0 64 72" className={`mt-3 h-11 w-10 ${blink ? "bulb-blink" : ""}`} aria-hidden>
+      {lit || blink ? <ellipse className="bulb-glow" cx="32" cy="28" rx="22" ry="22" fill="#FFE38A" opacity={lit ? 0.75 : 0.45} /> : null}
       <path
+        className="bulb-glass"
         d="M32 8c-9.4 0-17 7.4-17 16.6 0 6 3.2 11.3 8.1 14.2 1 .6 1.6 1.7 1.6 2.9V46h14.6v-4.3c0-1.2.6-2.3 1.6-2.9 4.9-2.9 8.1-8.2 8.1-14.2C49 15.4 41.4 8 32 8z"
         fill={lit ? "#F6C31A" : "#F6E3A4"}
       />
-      <path d="M27 34c1.2 2 2.2 3.2 5 3.2s3.8-1.2 5-3.2" fill="none" stroke={lit ? "#E2A400" : "#E7D7A2"} strokeWidth="1.4" strokeLinecap="round" />
+      <path className="bulb-glass" d="M27 34c1.2 2 2.2 3.2 5 3.2s3.8-1.2 5-3.2" fill="none" stroke={lit ? "#E2A400" : "#E7D7A2"} strokeWidth="1.4" strokeLinecap="round" />
       <rect x="25" y="48" width="14" height="3.2" rx="1" fill="#E4E4E4" />
       <rect x="26.2" y="52.4" width="11.6" height="3" rx="1" fill="#D5D5D5" />
       <rect x="27.4" y="56.6" width="9.2" height="3" rx="1" fill="#C8C8C8" />
