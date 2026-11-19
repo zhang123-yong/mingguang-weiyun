@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import {
   BatteryMedium,
   Bell,
@@ -124,6 +124,7 @@ export function LockPanel({ device }: { device: Device }) {
   const page = stack[stack.length - 1] ?? { id: "home" as const };
   const hold = useRef<number | null>(null);
   const fired = useRef(false);
+  const [holding, setHolding] = useState(false);
 
   function save(next: LockPanelState, log?: string) {
     patchDevice(device.id, { lock: next });
@@ -146,9 +147,17 @@ export function LockPanel({ device }: { device: Device }) {
     else pop();
   }
 
-  function holdProps(hint: string, fire: () => void) {
+  function holdProps(hint: string, fire: () => void, spin = false) {
+    function release() {
+      if (hold.current) window.clearTimeout(hold.current);
+      if (spin) setHolding(false);
+    }
     return {
-      onPointerDown: () => {
+      onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+        if (spin) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setHolding(true);
+        }
         fired.current = false;
         if (hold.current) window.clearTimeout(hold.current);
         hold.current = window.setTimeout(() => {
@@ -157,11 +166,13 @@ export function LockPanel({ device }: { device: Device }) {
         }, 650);
       },
       onPointerUp: () => {
-        if (hold.current) window.clearTimeout(hold.current);
-        if (!fired.current) notify(hint);
+        const done = fired.current;
+        release();
+        if (!done) notify(hint);
       },
-      onPointerCancel: () => {
-        if (hold.current) window.clearTimeout(hold.current);
+      onPointerCancel: release,
+      onContextMenu: (event: MouseEvent) => {
+        if (spin) event.preventDefault();
       },
     };
   }
@@ -239,13 +250,27 @@ export function LockPanel({ device }: { device: Device }) {
             <button
               type="button"
               aria-label="长按开锁"
-              {...holdProps("请长按开锁", unlock)}
-              className="mx-auto mt-4 grid size-[210px] place-items-center"
+              {...holdProps("请长按开锁", unlock, true)}
+              className="mx-auto mt-4 grid size-[210px] select-none place-items-center"
             >
               <span className="relative grid size-[210px] place-items-center">
                 <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
                   <circle cx="50" cy="50" r="40" fill="none" stroke="#D9F6EF" strokeWidth="9" />
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
+                  {holding ? (
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#20C6A4"
+                      strokeWidth="9"
+                      strokeLinecap="round"
+                      strokeDasharray="78 174"
+                      className="lock-ring-spin"
+                    />
+                  ) : (
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
+                  )}
                 </svg>
                 <span className="grid size-[132px] place-items-center rounded-full bg-white text-[#20C6A4]">
                   <Lock className="size-8" />
