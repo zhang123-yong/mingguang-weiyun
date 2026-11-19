@@ -57,7 +57,7 @@ import {
   WebAiScreen,
   CastScreen,
 } from "@/components/screens/features";
-import { SceneEditor, SceneScreen } from "@/components/screens/scenes";
+import { SceneCreateScreen, SceneEditor, SceneScreen, SmartAppsScreen, SmartCreateScreen } from "@/components/screens/scenes";
 import { AppStateProvider, useApp } from "@/lib/app-state";
 import { NavProvider, useNav, type Route, type TabId } from "@/lib/nav";
 
@@ -189,6 +189,12 @@ function Screen({
       return <SceneEditor kind={route.kind} id={route.id} initialName={route.initialName} initialWhen={route.initialWhen} />;
     case "scene-list":
       return <SceneScreen fixedKind={route.kind} />;
+    case "scene-create":
+      return <SceneCreateScreen />;
+    case "smart-create":
+      return <SmartCreateScreen prompt={route.prompt} />;
+    case "smart-apps":
+      return <SmartAppsScreen />;
     case "plus":
       return <PlusScreen />;
     case "calorie":

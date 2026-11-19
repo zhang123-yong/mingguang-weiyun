@@ -4,23 +4,24 @@ import { useState } from "react";
 import {
   AudioLines,
   BadgeCheck,
+  ChevronDown,
   ChevronRight,
   Compass,
-  Hand,
   House,
+  Menu,
   Mic,
   Plus,
   Sparkles,
-  SquarePlus,
   UserRound,
   Zap,
 } from "lucide-react";
 import { DeviceGlyph } from "@/components/chrome";
 import { Switch } from "@/components/chrome";
 import { useApp } from "@/lib/app-state";
-import type { Device, Group } from "@/lib/model";
+import type { Device, Group, Scene } from "@/lib/model";
 import { useNav, type TabId } from "@/lib/nav";
 import { MeScreen } from "@/components/screens/me";
+import { SwirlMark } from "@/components/screens/scenes";
 
 export function MainScreen() {
   const { tab, setTab } = useNav();
@@ -34,7 +35,8 @@ export function MainScreen() {
         {tab === "discover" ? <DiscoverPane /> : null}
         {tab === "me" ? <MeScreen /> : null}
       </div>
-      {tab === "home" || tab === "smart" ? <AskBar /> : null}
+      {tab === "home" ? <AskBar /> : null}
+      {tab === "smart" ? <AskBar smart /> : null}
       <nav className="grid h-[58px] shrink-0 grid-cols-4 border-t border-[#F0F0F0] bg-white pb-[env(safe-area-inset-bottom)]">
         <TabButton id="home" label="首页" active={tab === "home"} icon={<House className="size-5" />} onClick={setTab} />
         <TabButton id="smart" label="智能" active={tab === "smart"} icon={<BadgeCheck className="size-5" />} onClick={setTab} />
@@ -83,20 +85,20 @@ function TabButton({
   );
 }
 
-function AskBar() {
+function AskBar({ smart = false }: { smart?: boolean }) {
   const { push } = useNav();
   return (
-    <div className="bg-[#F3F5F8] px-4 pb-2">
+    <div className={`${smart ? "bg-transparent" : "bg-[#F3F5F8]"} px-4 pb-2`}>
       <div className="flex h-12 w-full items-center gap-2 rounded-full bg-white px-3 shadow-[0_4px_16px_rgba(20,24,40,0.06)]">
         <button type="button" onClick={() => push({ name: "assistant" })} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#7C5CFF] to-[#3AA0FF] text-[11px] text-white">名</span>
-          <span className="truncate text-[14px] text-[#B0B4BA]">需要什么帮助?</span>
+          {smart ? <SwirlMark /> : <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#7C5CFF] to-[#3AA0FF] text-[11px] text-white">名</span>}
+          <span className="truncate text-[14px] text-[#B0B4BA]">需要什么帮助？</span>
         </button>
         <button type="button" aria-label="语音" onClick={() => push({ name: "assistant", voice: true })} className="grid size-8 place-items-center">
           <Mic className="size-5 text-[#666]" />
         </button>
         <button type="button" aria-label="更多提问" onClick={() => push({ name: "assistant" })} className="grid size-8 place-items-center">
-          <AudioLines className="size-5 text-[#666]" />
+          {smart ? <Menu className="size-5 text-[#666]" /> : <AudioLines className="size-5 text-[#666]" />}
         </button>
       </div>
     </div>
@@ -260,67 +262,171 @@ function HomePane() {
   );
 }
 
+let smartSection: "app" | "tap" | "auto" = "app";
+
 function SmartPane() {
-  const { data } = useApp();
-  const { push } = useNav();
+  const { data, patchScene, runScene } = useApp();
+  const { push, notify } = useNav();
+  const [section, setSection] = useState<"app" | "tap" | "auto">(smartSection);
+  function chooseSection(id: "app" | "tap" | "auto") {
+    smartSection = id;
+    setSection(id);
+  }
+  const [filter, setFilter] = useState<"all" | "on" | "off">("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
   const scenes = data.scenes.filter((scene) => scene.homeId === data.currentHomeId);
-  const rows = [
-    { icon: <BadgeCheck className="size-5 text-[#F5B400]" />, label: "自动化", go: () => push({ name: "scene-list", kind: "auto" }) },
-    { icon: <Hand className="size-5 text-[#2FBF71]" />, label: "手动执行", go: () => push({ name: "scene-list", kind: "tap" }) },
-    { icon: <Sparkles className="size-5 text-[#5B7CFF]" />, label: "推荐应用模版", go: () => push({ name: "templates" }) },
-  ];
+  const apps = scenes.filter((scene) => scene.smartApp);
+  const manual = scenes.filter((scene) => scene.kind === "tap" && !scene.smartApp);
+  const autos = scenes.filter((scene) => scene.kind === "auto" && !scene.smartApp);
+  const pool = section === "tap" ? manual : autos;
+  const shown = pool.filter((scene) => filter === "all" || (filter === "on" ? scene.enabled : !scene.enabled));
+  const filterLabel = filter === "on" ? "已启用" : filter === "off" ? "未启用" : "全部筛选";
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-gradient-to-b from-[#EEF3FA] to-[#F7F8FB]">
       <AppHeader
-        title={(data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0])?.name ?? "我的家"}
+        title={home?.name ?? "我的家"}
         right={
           <>
-            <button type="button" aria-label="我的应用" onClick={() => push({ name: "scene-list", kind: "tap" })} className="grid size-8 place-items-center">
-              <span className="text-[18px] leading-none">☰</span>
+            <button type="button" aria-label="我的应用" onClick={() => push({ name: "smart-apps" })} className="grid size-8 place-items-center">
+              <ListMark />
             </button>
-            <button type="button" aria-label="创建" onClick={() => push({ name: "scene-edit", kind: "auto" })} className="grid size-8 place-items-center">
-              <SquarePlus className="size-5" />
+            <button type="button" aria-label="创建" onClick={() => push({ name: "scene-create" })} className="grid size-8 place-items-center">
+              <Plus className="size-5" />
             </button>
           </>
         }
       />
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <div className="overflow-hidden rounded-2xl bg-white">
-          {rows.map((row) => (
-            <button key={row.label} type="button" onClick={row.go} className="flex w-full items-center gap-3 border-b border-[#F4F5F7] px-4 py-4 text-left last:border-b-0">
-              {row.icon}
-              <span className="flex-1 text-[16px]">{row.label}</span>
-              <ChevronRight className="size-4 text-[#CCC]" />
-            </button>
-          ))}
-        </div>
-        <p className="mb-3 mt-5 text-[15px] text-[#666]">我的应用</p>
-        {scenes.length === 0 ? (
-          <div className="px-6 py-8 text-center">
-            <p className="text-[18px]">暂无应用</p>
-            <p className="mt-2 text-[13px] text-[#98A0AA]">创建你的专属智能应用</p>
-            <button type="button" onClick={() => push({ name: "scene-edit", kind: "auto" })} className="mx-auto mt-5 block h-11 w-36 rounded-full bg-[#222] text-[15px] text-white">
-              去创建
+      <div className="flex items-end gap-5 px-5 pb-3">
+        {([
+          ["app", "智能应用"],
+          ["tap", "手动执行"],
+          ["auto", "自动化"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => { chooseSection(id); setFilter("all"); setFilterOpen(false); }}
+            className={section === id ? "text-[20px] font-semibold" : "pb-0.5 text-[16px] text-[#B0B4BA]"}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {section === "app" ? (
+          <div className="flex min-h-full flex-col px-4 pb-4">
+            {apps.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+                <p className="text-[18px] font-medium">暂无应用</p>
+                <p className="mt-2 text-[13px] text-[#A0A4AA]">创建你的专属智能应用</p>
+                <button type="button" onClick={() => push({ name: "smart-create" })} className="mt-5 h-11 rounded-full bg-[#1A1A1A] px-8 text-[15px] text-white">
+                  去创建
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 pt-1">
+                {apps.map((scene) => (
+                  <SceneRow key={scene.id} scene={scene} onOpen={() => push({ name: "scene-edit", kind: scene.kind, id: scene.id })} onRun={() => notify(runScene(scene.id))} onToggle={(enabled) => { patchScene(scene.id, { enabled }); notify(enabled ? "自动化已启用" : "自动化已关闭"); }} />
+                ))}
+              </div>
+            )}
+            <p className="mb-2 mt-6 text-[14px] text-[#666]">推荐</p>
+            <button type="button" onClick={() => push({ name: "smart-create", prompt: "为感恩节准备一场温暖的灯光盛宴" })} className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+              <LightsThumb />
+              <span className="min-w-0">
+                <span className="block text-[16px] font-medium">感恩节灯光</span>
+                <span className="mt-1 block truncate text-[12px] text-[#A0A4AA]">为感恩节准备一场温暖的灯光盛…</span>
+              </span>
             </button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {scenes.map((scene) => (
-              <button
-                key={scene.id}
-                type="button"
-                onClick={() => push({ name: "scene-edit", kind: scene.kind, id: scene.id })}
-                className="rounded-2xl bg-white px-4 py-4 text-left"
-              >
-                <span className="block text-[16px] font-medium">{scene.name}</span>
-                <span className="mt-1 block text-[12px] text-[#888]">{scene.kind === "auto" ? "自动化" : "手动执行"} · {scene.when}</span>
+          <div className="flex min-h-full flex-col px-4 pb-4">
+            <div className="relative">
+              <button type="button" onClick={() => setFilterOpen((open) => !open)} className="flex h-12 w-full items-center justify-between rounded-2xl bg-white px-4 text-[15px]">
+                {filterLabel}
+                <ChevronDown className="size-4 text-[#666]" />
               </button>
-            ))}
+              {filterOpen ? (
+                <div className="absolute inset-x-0 top-14 z-10 overflow-hidden rounded-2xl bg-white shadow-lg">
+                  {([
+                    ["all", "全部筛选"],
+                    ["on", "已启用"],
+                    ["off", "未启用"],
+                  ] as const).map(([id, label]) => (
+                    <button key={id} type="button" onClick={() => { setFilter(id); setFilterOpen(false); }} className="block w-full border-b border-[#F4F5F7] px-4 py-3 text-left last:border-b-0">
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {pool.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+                <p className="text-[18px] font-medium">{section === "tap" ? "暂无“手动执行”" : "暂无“自动化”"}</p>
+                <p className="mt-2 text-[13px] leading-6 text-[#A0A4AA]">
+                  {section === "tap" ? "设置后，在APP内手动点击控制设备，快捷便利" : "设置后，满足条件时自动执行，无需在 App 里手动点击"}
+                </p>
+                <button type="button" onClick={() => push({ name: "scene-create" })} className="mt-5 h-11 rounded-full bg-[#1A1A1A] px-8 text-[15px] text-white">
+                  去创建
+                </button>
+              </div>
+            ) : shown.length === 0 ? (
+              <p className="px-6 py-16 text-center text-[14px] text-[#A0A4AA]">没有符合筛选的场景</p>
+            ) : (
+              <div className="mt-3 flex flex-col gap-3">
+                {shown.map((scene) => (
+                  <SceneRow key={scene.id} scene={scene} onOpen={() => push({ name: "scene-edit", kind: scene.kind, id: scene.id })} onRun={() => notify(runScene(scene.id))} onToggle={(enabled) => { patchScene(scene.id, { enabled }); notify(enabled ? "自动化已启用" : "自动化已关闭"); }} />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function SceneRow({ scene, onOpen, onRun, onToggle }: { scene: Scene; onOpen: () => void; onRun: () => void; onToggle: (enabled: boolean) => void }) {
+  return (
+    <article className="rounded-2xl bg-white px-4 py-4">
+      <button type="button" onClick={onOpen} className="w-full text-left">
+        <span className="block text-[16px] font-medium">{scene.name}</span>
+        <span className="mt-1 block text-[12px] text-[#A0A4AA]">{scene.when}</span>
+      </button>
+      <div className="mt-3 flex items-center justify-between">
+        <button type="button" onClick={onRun} className="h-8 rounded-full bg-[#F4F5F7] px-4 text-[13px]">{scene.kind === "tap" ? "执行" : "试运行"}</button>
+        {scene.kind === "auto" ? <Switch checked={scene.enabled} label={`${scene.name}开关`} onChange={onToggle} /> : null}
+      </div>
+    </article>
+  );
+}
+
+function ListMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
+      <rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LightsThumb() {
+  return (
+    <svg viewBox="0 0 72 72" className="size-14 shrink-0 rounded-xl" aria-hidden>
+      <rect width="72" height="72" fill="#7A3428" />
+      <path d="M4 20c14 10 24-8 40-2 10 4 16 6 24 2" fill="none" stroke="#F6C15A" strokeWidth="1.4" />
+      <path d="M6 34c16 8 26-6 42 0 8 3 14 3 20 0" fill="none" stroke="#F3B24A" strokeWidth="1.4" />
+      <circle cx="18" cy="24" r="2.2" fill="#FFE08A" />
+      <circle cx="34" cy="18" r="2" fill="#FF8A5A" />
+      <circle cx="50" cy="22" r="2.2" fill="#FFF1C2" />
+      <circle cx="22" cy="38" r="2" fill="#FFD36A" />
+      <circle cx="40" cy="34" r="2.2" fill="#FFE7A8" />
+      <circle cx="56" cy="36" r="2" fill="#FF9A62" />
+      <circle cx="30" cy="52" r="8" fill="#C45A3A" />
+      <circle cx="30" cy="52" r="4" fill="#E7C07A" />
+    </svg>
   );
 }
 

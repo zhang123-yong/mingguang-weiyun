@@ -27,6 +27,9 @@ export type Route =
   | { name: "group"; id: string }
   | { name: "scene-edit"; kind: "tap" | "auto"; id?: string; initialName?: string; initialWhen?: string }
   | { name: "scene-list"; kind: "tap" | "auto" }
+  | { name: "scene-create" }
+  | { name: "smart-create"; prompt?: string }
+  | { name: "smart-apps" }
   | { name: "plus" }
   | { name: "calorie" }
   | { name: "assistant"; voice?: boolean }

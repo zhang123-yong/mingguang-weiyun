@@ -86,6 +86,7 @@ export type Scene = {
   id: string;
   homeId: string;
   kind: "tap" | "auto";
+  smartApp?: boolean;
   name: string;
   enabled: boolean;
   when: string;
