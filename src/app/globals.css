@@ -134,6 +134,18 @@
   }
 }
 
+@keyframes ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lock-ring-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ring-spin 1s linear infinite;
+}
+
 @keyframes bulb-blink {
   0%,
   49% {

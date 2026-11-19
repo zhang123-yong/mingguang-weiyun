@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import {
   BatteryMedium,
   Bell,
@@ -124,6 +124,7 @@ export function LockPanel({ device }: { device: Device }) {
   const page = stack[stack.length - 1] ?? { id: "home" as const };
   const hold = useRef<number | null>(null);
   const fired = useRef(false);
+  const [holding, setHolding] = useState(false);
 
   function save(next: LockPanelState, log?: string) {
     patchDevice(device.id, { lock: next });
@@ -147,33 +148,41 @@ export function LockPanel({ device }: { device: Device }) {
   }
 
   function holdProps(hint: string, fire: () => void) {
+    function stop() {
+      if (hold.current) window.clearTimeout(hold.current);
+      setHolding(false);
+    }
     return {
-      onPointerDown: () => {
+      onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
         fired.current = false;
+        setHolding(true);
         if (hold.current) window.clearTimeout(hold.current);
         hold.current = window.setTimeout(() => {
           fired.current = true;
+          setHolding(false);
           fire();
-        }, 650);
+        }, 1000);
       },
       onPointerUp: () => {
-        if (hold.current) window.clearTimeout(hold.current);
-        if (!fired.current) notify(hint);
+        const done = fired.current;
+        stop();
+        if (!done) notify(hint);
       },
-      onPointerCancel: () => {
-        if (hold.current) window.clearTimeout(hold.current);
-      },
+      onPointerCancel: stop,
+      onContextMenu: (event: MouseEvent) => event.preventDefault(),
     };
   }
 
-  function unlock() {
-    if (!panel.remoteUnlock) {
+  function toggleLock() {
+    if (device.locked && !panel.remoteUnlock) {
       notify("远程开锁已关闭");
       return;
     }
-    patchDevice(device.id, { locked: false });
-    pushLog(device.id, "长按开锁");
-    notify("已开锁");
+    const nextLocked = !device.locked;
+    patchDevice(device.id, { locked: nextLocked });
+    pushLog(device.id, nextLocked ? "长按上锁" : "长按开锁");
+    notify(nextLocked ? "已上锁" : "已开锁");
   }
 
   const unlocked = !device.locked;
@@ -238,14 +247,28 @@ export function LockPanel({ device }: { device: Device }) {
             </div>
             <button
               type="button"
-              aria-label="长按开锁"
-              {...holdProps("请长按开锁", unlock)}
-              className="mx-auto mt-4 grid size-[210px] place-items-center"
+              aria-label={unlocked ? "长按上锁" : "长按开锁"}
+              {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}
+              className="mx-auto mt-4 grid size-[210px] select-none place-items-center"
             >
               <span className="relative grid size-[210px] place-items-center">
                 <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
                   <circle cx="50" cy="50" r="40" fill="none" stroke="#D9F6EF" strokeWidth="9" />
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
+                  {holding ? (
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#20C6A4"
+                      strokeWidth="9"
+                      strokeLinecap="round"
+                      strokeDasharray="78 174"
+                      className="lock-ring-spin"
+                    />
+                  ) : (
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
+                  )}
                 </svg>
                 <span className="grid size-[132px] place-items-center rounded-full bg-white text-[#20C6A4]">
                   <Lock className="size-8" />
@@ -395,7 +418,7 @@ export function LockPanel({ device }: { device: Device }) {
                 <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">册</i>
                 相册
               </button>
-              <button type="button" {...holdProps("请长按开锁", unlock)}>
+              <button type="button" {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}>
                 <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">锁</i>
                 {unlocked ? "已开锁" : "长按开锁"}
               </button>
