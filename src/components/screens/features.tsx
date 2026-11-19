@@ -12,11 +12,14 @@ type NoteKind = "record" | "live" | "interpret" | "import";
 type NoteItem = { id: string; title: string; body: string; kind: NoteKind };
 type Strategy = { id: string; name: string; detail: string; saving: string };
 
+type TransItem = { id: string; kind: "文本" | "同声传译" | "对话翻译"; source: string; result: string };
+
 const session = {
   notes: [] as NoteItem[],
   messages: [] as { role: "user" | "assistant"; text: string }[],
   strategies: [] as Strategy[],
   cloudSync: false,
+  translations: [] as TransItem[],
 };
 
 export const AGENTS = [
@@ -579,29 +582,377 @@ function ClockEmpty() {
   );
 }
 
+const LANGS = ["中文（简体）", "英语", "日语", "韩语", "法语"];
+const DEMO_LINES = [
+  { zh: "你好", en: "Hello" },
+  { zh: "打开门锁", en: "Unlock the door" },
+  { zh: "今天天气怎么样", en: "How is the weather today" },
+];
+
 export function TranslateScreen() {
-  const { pop } = useNav();
+  const { data } = useApp();
+  const { pop, push, notify } = useNav();
+  const [view, setView] = useState<"home" | "live" | "dialog" | "all">("home");
+  const [more, setMore] = useState(false);
+  const [from, setFrom] = useState(LANGS[0]);
+  const [to, setTo] = useState(LANGS[1]);
+  const [picking, setPicking] = useState<"from" | "to" | null>(null);
   const [text, setText] = useState("");
-  const [result, setResult] = useState<{ from: string; to: string; result: string } | null>(null);
-  return (
-    <Page title="AI 翻译" onBack={pop}>
-      <p className="text-[14px] text-[#666]">AI 大模型驱动，准确又自然。常用短句已可试译，其余句子会给出本地草稿。</p>
-      <textarea
-        value={text}
-        placeholder="输入要翻译的话，例如：打开门锁"
-        onChange={(event) => setText(event.target.value)}
-        className="mt-3 h-28 w-full resize-none rounded-2xl border border-[#E8E8E8] bg-white px-4 py-3 text-[15px] outline-none"
+  const [items, setItems] = useState(session.translations);
+  const name = data.user?.nickname?.trim() || "我";
+  const preview = translateDraft(text, from, to);
+
+  function remember(kind: TransItem["kind"], source: string, result: string) {
+    const clean = source.trim();
+    const output = result.trim();
+    if (!clean || !output) return;
+    if (session.translations[0]?.source === clean && session.translations[0]?.kind === kind) return;
+    const next = [{ id: `tr-${Date.now()}`, kind, source: clean, result: output }, ...session.translations];
+    session.translations = next;
+    setItems(next);
+  }
+
+  function choose(lang: string) {
+    if (picking === "from") {
+      if (lang === to) setTo(from);
+      setFrom(lang);
+    }
+    if (picking === "to") {
+      if (lang === from) setFrom(to);
+      setTo(lang);
+    }
+    setPicking(null);
+  }
+
+  if (view === "live" || view === "dialog") {
+    return (
+      <InterpretScreen
+        title={view === "live" ? "同声传译" : "对话翻译"}
+        dialog={view === "dialog"}
+        from={from}
+        to={to}
+        onBack={() => setView("home")}
+        onSwap={() => { setFrom(to); setTo(from); }}
+        onPick={setPicking}
+        onDone={(source, result) => {
+          remember(view === "live" ? "同声传译" : "对话翻译", source, result);
+          setView("home");
+          if (source) notify("已保存到历史记录");
+        }}
+        notify={notify}
+        picking={picking}
+        onChoose={choose}
+        onClosePick={() => setPicking(null)}
       />
-      <div className="mt-3">
-        <PrimaryButton onClick={() => setResult(translateText(text))}>翻译</PrimaryButton>
-      </div>
-      {result?.result ? (
-        <article className="mt-4 rounded-2xl bg-white px-4 py-4">
-          <p className="text-[12px] text-[#999]">{result.from} → {result.to}</p>
-          <p className="mt-2 text-[16px] leading-7">{result.result}</p>
-        </article>
+    );
+  }
+
+  return (
+    <div className="relative flex h-full flex-col bg-[#F4F6FB] text-[#222]">
+      <FeatureHead
+        title="AI翻译"
+        onClose={pop}
+        onMore={() => setMore((open) => !open)}
+        extra={<button type="button" aria-label="礼包" onClick={() => notify("会员礼包暂未开放")} className="grid size-9 place-items-center"><Gift className="size-5" /></button>}
+      />
+      {more ? (
+        <div className="absolute right-4 top-16 z-20 w-36 overflow-hidden rounded-2xl bg-white py-1 shadow-xl">
+          <button type="button" className="block w-full px-4 py-3 text-left text-[14px]" onClick={() => { session.translations = []; setItems([]); setMore(false); notify("历史记录已清空"); }}>清空记录</button>
+          <button type="button" className="block w-full px-4 py-3 text-left text-[14px]" onClick={() => { setMore(false); push({ name: "feedback" }); }}>去反馈</button>
+        </div>
       ) : null}
-    </Page>
+      {view === "all" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+          <button type="button" onClick={() => setView("home")} className="mb-3 text-[14px] text-[#3A8DFF]">返回</button>
+          <h2 className="text-[18px] font-semibold">历史记录</h2>
+          <HistoryList items={items} />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+          <button type="button" onClick={() => push({ name: "profile" })} className="mt-5 flex w-full items-center justify-between px-1">
+            <span className="text-[20px]">{name.slice(0, 1)}.</span>
+            <ChevronRight className="size-5 text-[#C8C8C8]" />
+          </button>
+          <section className="relative mt-3 rounded-2xl bg-white px-4 py-3 shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+            <div className="flex items-center">
+              <button type="button" onClick={() => setPicking("from")} className="flex items-center gap-1 text-[15px]">{from}<ChevronDown className="size-4 text-[#666]" /></button>
+              <button type="button" aria-label="交换语言" onClick={() => { setFrom(to); setTo(from); }} className="mx-auto grid h-7 w-10 place-items-center rounded-lg bg-[#EEF3FF] text-[#4C8DFF]">
+                <SwapMark />
+              </button>
+              <button type="button" onClick={() => setPicking("to")} className="flex items-center gap-1 text-[15px]">{to}<ChevronDown className="size-4 text-[#666]" /></button>
+            </div>
+            <div className="mt-4 flex items-start gap-2">
+              <textarea
+                value={text}
+                placeholder="请输入需要翻译的内容"
+                onChange={(event) => setText(event.target.value)}
+                onBlur={() => remember("文本", text, preview)}
+                className="min-h-16 flex-1 resize-none bg-transparent text-[15px] outline-none placeholder:text-[#C5C8CE]"
+              />
+              <button
+                type="button"
+                aria-label="语音输入"
+                onClick={() => {
+                  if (!text.trim()) {
+                    setText("打开门锁");
+                    notify("演示不会使用麦克风");
+                    return;
+                  }
+                  remember("文本", text, preview);
+                  notify("已保存到历史记录");
+                }}
+                className="mt-1 text-[#4C8DFF]"
+              >
+                <WaveMark />
+              </button>
+            </div>
+            {preview ? <p className="border-t border-[#F2F3F6] pt-3 text-[15px] leading-6">{preview}</p> : null}
+            {picking ? <LangMenu onChoose={choose} onClose={() => setPicking(null)} /> : null}
+          </section>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => setView("live")} className="flex h-[72px] items-center gap-2 rounded-2xl bg-white px-3 text-left shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+              <SimultaneousMark />
+              <span className="text-[15px]">同声传译</span>
+            </button>
+            <button type="button" onClick={() => setView("dialog")} className="flex h-[72px] items-center gap-2 rounded-2xl bg-white px-3 text-left shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+              <DialogMark />
+              <span className="text-[15px]">对话翻译</span>
+            </button>
+          </div>
+          <div className="mt-6 flex items-center justify-between px-1">
+            <h2 className="text-[18px] font-semibold">历史记录</h2>
+            <button type="button" onClick={() => setView("all")} className="flex items-center text-[14px] text-[#8A9098]">全部<ChevronRight className="size-4" /></button>
+          </div>
+          {items.length === 0 ? <PaperEmpty /> : <HistoryList items={items.slice(0, 3)} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InterpretScreen({
+  title,
+  dialog,
+  from,
+  to,
+  onBack,
+  onSwap,
+  onPick,
+  onDone,
+  notify,
+  picking,
+  onChoose,
+  onClosePick,
+}: {
+  title: string;
+  dialog: boolean;
+  from: string;
+  to: string;
+  onBack: () => void;
+  onSwap: () => void;
+  onPick: (side: "from" | "to") => void;
+  onDone: (source: string, result: string) => void;
+  notify: (message: string) => void;
+  picking: "from" | "to" | null;
+  onChoose: (lang: string) => void;
+  onClosePick: () => void;
+}) {
+  const [seconds, setSeconds] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [lines, setLines] = useState<{ zh: string; en: string }[]>([]);
+  const secondsRef = useRef(0);
+
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => {
+      secondsRef.current += 1;
+      const next = secondsRef.current;
+      setSeconds(next);
+      if (next % 2 === 0) {
+        const line = DEMO_LINES[(next / 2 - 1) % DEMO_LINES.length];
+        setLines((list) => [...list, line]);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [running]);
+
+  function finish() {
+    setRunning(false);
+    const source = lines.map((line) => line.zh).join("\n");
+    const result = lines.map((line) => line.en).join("\n");
+    onDone(source, result);
+  }
+
+  const clock = [seconds / 3600, (seconds % 3600) / 60, seconds % 60].map((part) => String(Math.floor(part)).padStart(2, "0")).join(":");
+
+  return (
+    <div className="relative flex h-full flex-col bg-[#F4F6FB] text-[#222]">
+      <header className="grid h-12 grid-cols-[40px_1fr_40px] items-center px-2">
+        <button type="button" aria-label="返回" onClick={onBack} className="grid size-10 place-items-center text-[28px]">‹</button>
+        <h1 className="text-center text-[17px] font-medium">{title}</h1>
+        <span />
+      </header>
+      <div className="relative mx-4 flex min-h-0 flex-1 flex-col rounded-3xl bg-white px-4 py-4 shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+        <div className="flex items-center gap-2 text-[15px]">
+          <WaveMark />
+          <span className="font-medium tabular-nums">{clock}</span>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col justify-center px-2">
+          {lines.length === 0 ? (
+            <p className="text-center text-[14px] leading-6 text-[#B0B4BA]">{dialog ? "点击开始后，双方轮流说话，内容会写在两边" : "请准确选择语言，音频将实时转写和翻译"}</p>
+          ) : dialog ? (
+            <div className="flex flex-col gap-3 overflow-y-auto">
+              {lines.map((line, index) => (
+                <p key={`${line.zh}-${index}`} className={index % 2 === 0 ? "max-w-[80%] rounded-2xl bg-[#F4F7FB] px-3 py-2 text-[14px]" : "max-w-[80%] self-end rounded-2xl bg-[#EEF3FF] px-3 py-2 text-right text-[14px]"}>
+                  <span className="block text-[11px] text-[#A0A4AA]">{index % 2 === 0 ? "我" : "对方"}</span>
+                  {index % 2 === 0 ? line.zh : line.en}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 overflow-y-auto text-[15px] leading-6">
+              {lines.map((line) => (
+                <div key={line.zh + line.en}>
+                  <p>{line.zh}</p>
+                  <p className="text-[#8A9098]">{line.en}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-between pt-3 text-[14px]">
+          <button type="button" onClick={() => onPick("from")} className="flex items-center gap-1">{from}</button>
+          <button type="button" aria-label="交换语言" onClick={onSwap} className="text-[#8A9098]">→</button>
+          <button type="button" onClick={() => onPick("to")} className="flex items-center gap-1">{to}<ChevronDown className="size-4" /></button>
+          <button type="button" aria-label={muted ? "取消静音" : "静音"} aria-pressed={muted} onClick={() => { setMuted((value) => !value); notify(muted ? "已打开声音" : "已静音"); }} className="text-[#8A9098]">
+            <SpeakerMark muted={muted} />
+          </button>
+        </div>
+        {picking ? <LangMenu onChoose={onChoose} onClose={onClosePick} /> : null}
+      </div>
+      <div className="flex items-center justify-between px-6 py-5">
+        <button type="button" aria-label="麦克风" onClick={() => notify("当前使用手机麦克风，演示不会录音")} className="grid w-12 place-items-center text-[#222]">
+          <PhoneMark />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setRunning((value) => !value);
+            if (!running && lines.length === 0) notify("演示不会使用麦克风，将写入示例语句");
+          }}
+          className="h-12 min-w-[128px] whitespace-nowrap rounded-full border-2 border-[#F07A8A] bg-[#FFF6F7] px-8 text-[16px] text-[#F07A8A]"
+        >
+          {running ? "暂停" : "开始"}
+        </button>
+        <button type="button" onClick={finish} className="w-12 text-right text-[16px] text-[#3A8DFF]">完成</button>
+      </div>
+    </div>
+  );
+}
+
+function translateDraft(text: string, from: string, to: string) {
+  const hit = translateText(text);
+  if (!hit.result) return "";
+  const foreign = !to.startsWith("中文") && !to.startsWith("英语");
+  if (foreign) return `${hit.result}（${to}草稿）`;
+  if (to.startsWith("中文") && from.startsWith("中文")) return hit.result;
+  return hit.result;
+}
+
+function LangMenu({ onChoose, onClose }: { onChoose: (lang: string) => void; onClose: () => void }) {
+  return (
+    <div className="absolute inset-x-4 top-16 z-10 rounded-2xl bg-white py-1 shadow-xl" onClick={(event) => event.stopPropagation()}>
+      {LANGS.map((lang) => (
+        <button key={lang} type="button" onClick={() => onChoose(lang)} className="block w-full px-4 py-3 text-left text-[15px]">{lang}</button>
+      ))}
+      <button type="button" onClick={onClose} className="block w-full px-4 py-3 text-left text-[14px] text-[#8A9098]">取消</button>
+    </div>
+  );
+}
+
+function HistoryList({ items }: { items: TransItem[] }) {
+  if (items.length === 0) return <PaperEmpty />;
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      {items.map((item) => (
+        <article key={item.id} className="rounded-2xl bg-white px-4 py-3">
+          <p className="text-[12px] text-[#A0A4AA]">{item.kind}</p>
+          <p className="mt-1 whitespace-pre-line text-[15px]">{item.source}</p>
+          <p className="mt-1 whitespace-pre-line text-[14px] leading-6 text-[#8A9098]">{item.result}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function PaperEmpty() {
+  return (
+    <div className="px-6 py-10 text-center">
+      <svg viewBox="0 0 120 90" className="mx-auto h-24" aria-hidden>
+        <rect x="34" y="18" width="52" height="62" rx="6" fill="#F7F8FB" stroke="#E6E9F0" transform="rotate(-8 60 49)" />
+        <rect x="30" y="16" width="58" height="64" rx="8" fill="#fff" stroke="#E4E7EE" />
+        <path d="M42 34h34M42 44h28M42 54h22" stroke="#EEF0F4" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+      <p className="mt-2 text-[14px] text-[#C0C4CC]">暂无数据</p>
+    </div>
+  );
+}
+
+function SwapMark() {
+  return (
+    <svg viewBox="0 0 24 16" className="h-3.5 w-5" aria-hidden>
+      <path d="M7 3H2l3-3M17 13h5l-3 3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 3h14a3 3 0 0 1 3 3M21 13H7a3 3 0 0 1-3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WaveMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
+      <path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SimultaneousMark() {
+  return (
+    <svg viewBox="0 0 32 32" className="size-8 text-[#5B7CFF]" aria-hidden>
+      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6 22c1.2-3 3.4-4.5 6-4.5S16.8 19 18 22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M20 10c2 1.2 3 2.8 3 5s-1 3.8-3 5M23 8c2.6 1.8 4 4.2 4 7s-1.4 5.2-4 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DialogMark() {
+  return (
+    <svg viewBox="0 0 32 32" className="size-8 text-[#8AA0B8]" aria-hidden>
+      <rect x="4" y="7" width="16" height="12" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 19v3l4-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <rect x="13" y="13" width="15" height="11" rx="3" fill="#F4F7FB" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M18 17h6M18 20h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SpeakerMark({ muted }: { muted: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
+      <path d="M4 10h3l4-3v10l-4-3H4z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      {muted ? <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /> : <path d="M16 9c2 1.4 2 4.6 0 6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
+    </svg>
+  );
+}
+
+function PhoneMark() {
+  return (
+    <svg viewBox="0 0 28 24" className="h-6 w-7" aria-hidden>
+      <rect x="6" y="2" width="12" height="20" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M11 18h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M20 8l3 2-3 2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
