@@ -67,6 +67,7 @@ type Page =
   | { id: "link" }
   | { id: "settings" }
   | { id: "services" }
+  | { id: "sms-plan" }
   | { id: "redeem" }
   | { id: "voice" }
   | { id: "gesture"; mode: "set" | "off" }
@@ -948,7 +949,7 @@ export function LockPanel({ device }: { device: Device }) {
                   修改手势密码<span className="text-[#C8C8C8]">›</span>
                 </button>
               ) : null}
-              <div className="flex items-center justify-between py-3">
+              <div className={`flex items-center justify-between py-3 ${panel.phoneService ? "border-b border-[#f2f3f5]" : ""}`}>
                 <span>门铃短信电话通知服务</span>
                 <Toggle label="门铃短信电话通知" on={panel.phoneService} onClick={() => {
                   if (!panel.phoneService) {
@@ -960,6 +961,16 @@ export function LockPanel({ device }: { device: Device }) {
                   notify("已关闭门铃短信电话通知");
                 }} />
               </div>
+              {panel.phoneService ? (
+                <button type="button" onClick={() => open({ id: "sms-plan" })} className="flex w-full items-center justify-between py-4">
+                  <span>短信电话套餐</span>
+                  {panel.smsQuota > 0 ? (
+                    <span className="text-[14px] text-[#8e8e93]">剩余 {panel.smsQuota} 条 ›</span>
+                  ) : (
+                    <span className="text-[14px] text-[#FF3B30]">暂无余量, 去购买 ›</span>
+                  )}
+                </button>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -1088,6 +1099,28 @@ export function LockPanel({ device }: { device: Device }) {
                   </span>
                   {panel.talkMode === id ? <Check className="size-5 text-[#12c4a0]" /> : null}
                 </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "sms-plan" ? (
+          <section>
+            <Bar title="短信电话套餐" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white p-4">
+              <p className="text-[14px] text-[#8e8e93]">当前余量</p>
+              <p className="mt-1 text-[22px] font-semibold">{panel.smsQuota > 0 ? `${panel.smsQuota} 条` : "暂无余量"}</p>
+            </div>
+            <div className="mx-4 mt-3 rounded-2xl bg-white px-4">
+              {[[100, "9.90"], [500, "39.90"], [1000, "69.90"]].map(([count, price]) => (
+                <div key={count} className="flex items-center justify-between border-b border-[#f2f3f5] py-3 last:border-b-0">
+                  <span><b className="block">{count} 条短信电话</b><small className="text-[12px] text-[#8e8e93]">门铃通知用完即止，演示不会扣费</small></span>
+                  <button type="button" className="h-8 rounded-full bg-[#FF3B30] px-3 text-[13px] text-white" onClick={() => {
+                    save({ ...panel, smsQuota: panel.smsQuota + Number(count) });
+                    notify(`已增加 ${count} 条，演示不会扣费`);
+                    back();
+                  }}>¥{price}</button>
+                </div>
               ))}
             </div>
           </section>

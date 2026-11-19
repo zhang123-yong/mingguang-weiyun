@@ -35,6 +35,7 @@ export type LockPanelState = {
   wrist: boolean;
   gesture: string;
   phoneService: boolean;
+  smsQuota: number;
   dnd: boolean;
   notifyLock: boolean;
   notifyCall: boolean;
@@ -189,6 +190,7 @@ export function defaultLockPanel(): LockPanelState {
     wrist: false,
     gesture: "",
     phoneService: false,
+    smsQuota: 0,
     dnd: false,
     notifyLock: true,
     notifyCall: false,
@@ -220,6 +222,7 @@ export function lockPanelOf(lock?: LockPanelState): LockPanelState {
     ...lock,
     links: lock.links?.length ? lock.links : base.links,
     remind: { ...base.remind, ...lock.remind },
+    smsQuota: lock.smsQuota ?? base.smsQuota,
     album: lock.album ?? [],
   };
 }
