@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { QqIcon, WechatIcon } from "@/components/third-party-icons";
 import { Field, PrimaryButton, TextInput } from "@/components/chrome";
+import { DigitField, PhoneKeypad } from "@/components/phone-keypad";
 import { useApp } from "@/lib/app-state";
 import { useNav } from "@/lib/nav";
 
@@ -19,6 +20,7 @@ export function LoginScreen() {
   const [secret, setSecret] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [pad, setPad] = useState<"phone" | "code" | null>("phone");
 
   function submit() {
     if (!phoneOk(phone)) {
@@ -42,6 +44,23 @@ export function LoginScreen() {
     reset({ name: "tabs" });
   }
 
+  function typeDigit(digit: string) {
+    if (pad === "phone") {
+      setPhone((value) => {
+        const next = (value + digit).slice(0, 11);
+        if (value.length < 11 && next.length === 11 && mode === "code") queueMicrotask(() => setPad("code"));
+        return next;
+      });
+      return;
+    }
+    if (pad === "code") setSecret((value) => (value + digit).slice(0, 6));
+  }
+
+  function deleteDigit() {
+    if (pad === "phone") setPhone((value) => value.slice(0, -1));
+    if (pad === "code") setSecret((value) => value.slice(0, -1));
+  }
+
   return (
     <div className="flex h-full flex-col bg-white text-[#222]">
       <header className="flex h-12 items-center px-1">
@@ -55,50 +74,62 @@ export function LoginScreen() {
           <button
             type="button"
             className={mode === "code" ? "text-[#FF581C]" : "text-[#888]"}
-            onClick={() => setMode("code")}
+            onClick={() => {
+              setMode("code");
+              setSecret("");
+              setPad("phone");
+            }}
           >
             验证码登录
           </button>
           <button
             type="button"
             className={mode === "password" ? "text-[#FF581C]" : "text-[#888]"}
-            onClick={() => setMode("password")}
+            onClick={() => {
+              setMode("password");
+              setSecret("");
+              setPad("phone");
+            }}
           >
             密码登录
           </button>
         </div>
         <div className="mt-6 flex flex-col gap-3">
-          <div className="flex h-12 items-center rounded-xl border border-[#E8E8E8] px-3">
-            <span className="mr-3 text-[15px] text-[#666]">+86</span>
-            <input
-              value={phone}
-              inputMode="numeric"
-              maxLength={11}
-              placeholder="请输入手机号"
-              onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))}
-              className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none"
-            />
-          </div>
-          <div className="flex h-12 items-center rounded-xl border border-[#E8E8E8] px-3">
-            <input
-              value={secret}
-              type={mode === "password" ? "password" : "text"}
-              inputMode={mode === "code" ? "numeric" : "text"}
-              placeholder={mode === "code" ? "请输入验证码" : "请输入密码"}
-              onChange={(event) => setSecret(event.target.value)}
-              className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none"
-            />
-            {mode === "code" ? (
+          <DigitField
+            prefix="+86"
+            value={phone}
+            placeholder="请输入手机号"
+            active={pad === "phone"}
+            onClick={() => setPad("phone")}
+          />
+          {mode === "code" ? (
+            <div className="flex items-center gap-2">
+              <DigitField
+                value={secret}
+                placeholder="请输入验证码"
+                active={pad === "code"}
+                onClick={() => setPad("code")}
+              />
               <button
                 type="button"
-                className="shrink-0 text-[13px] text-[#FF581C] disabled:text-[#BBB]"
+                className="h-12 shrink-0 rounded-xl border border-[#E8E8E8] px-3 text-[13px] text-[#FF581C] disabled:text-[#BBB]"
                 disabled={!phoneOk(phone) || sent}
                 onClick={() => setSent(true)}
               >
                 {sent ? "验证码已发送" : "获取验证码"}
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : (
+            <input
+              value={secret}
+              type="password"
+              placeholder="请输入密码"
+              autoComplete="current-password"
+              onFocus={() => setPad(null)}
+              onChange={(event) => setSecret(event.target.value)}
+              className="h-12 w-full rounded-xl border border-[#E8E8E8] px-3 text-[15px] outline-none focus:border-[#FF581C]"
+            />
+          )}
         </div>
         <p className="mt-3 text-[12px] leading-5 text-[#999]">
           这里不会发送真实短信。手机号填 11 位，验证码填任意 4 到 6 位数字即可进入家庭。
@@ -117,6 +148,14 @@ export function LoginScreen() {
           </button>
         </div>
       </div>
+      {pad ? (
+        <PhoneKeypad
+          title={pad === "phone" ? "手机号" : "验证码"}
+          onDigit={typeDigit}
+          onDelete={deleteDigit}
+          onDone={() => setPad(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -128,6 +167,7 @@ export function RegisterScreen() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [pad, setPad] = useState<"phone" | "code" | null>("phone");
 
   function submit() {
     if (!phoneOk(phone)) {
@@ -151,6 +191,23 @@ export function RegisterScreen() {
     reset({ name: "tabs" });
   }
 
+  function typeDigit(digit: string) {
+    if (pad === "phone") {
+      setPhone((value) => {
+        const next = (value + digit).slice(0, 11);
+        if (value.length < 11 && next.length === 11) queueMicrotask(() => setPad("code"));
+        return next;
+      });
+      return;
+    }
+    if (pad === "code") setCode((value) => (value + digit).slice(0, 6));
+  }
+
+  function deleteDigit() {
+    if (pad === "phone") setPhone((value) => value.slice(0, -1));
+    if (pad === "code") setCode((value) => value.slice(0, -1));
+  }
+
   return (
     <div className="flex h-full flex-col bg-white text-[#222]">
       <header className="flex h-12 items-center px-1">
@@ -167,28 +224,31 @@ export function RegisterScreen() {
       >
         <h1 className="mt-2 text-[26px] font-medium">注册</h1>
         <div className="mt-6 flex flex-col gap-4">
-          <Field label="手机号">
-            <TextInput
+          <div>
+            <span className="mb-1.5 block text-[13px] text-[#888]">手机号</span>
+            <DigitField
+              prefix="+86"
               value={phone}
-              inputMode="numeric"
-              maxLength={11}
               placeholder="请输入手机号"
-              onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))}
+              active={pad === "phone"}
+              onClick={() => setPad("phone")}
             />
-          </Field>
-          <Field label="验证码">
-            <TextInput
+          </div>
+          <div>
+            <span className="mb-1.5 block text-[13px] text-[#888]">验证码</span>
+            <DigitField
               value={code}
-              inputMode="numeric"
               placeholder="任意 4 到 6 位数字"
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+              active={pad === "code"}
+              onClick={() => setPad("code")}
             />
-          </Field>
+          </div>
           <Field label="密码">
             <TextInput
               type="password"
               value={password}
               placeholder="至少 6 位"
+              onFocus={() => setPad(null)}
               onChange={(event) => setPassword(event.target.value)}
             />
           </Field>
@@ -198,6 +258,14 @@ export function RegisterScreen() {
           <PrimaryButton type="submit">注册并进入</PrimaryButton>
         </div>
       </form>
+      {pad ? (
+        <PhoneKeypad
+          title={pad === "phone" ? "手机号" : "验证码"}
+          onDigit={typeDigit}
+          onDelete={deleteDigit}
+          onDone={() => setPad(null)}
+        />
+      ) : null}
     </div>
   );
 }
