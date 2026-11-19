@@ -57,7 +57,7 @@ import {
   WebAiScreen,
   CastScreen,
 } from "@/components/screens/features";
-import { SceneCreateScreen, SceneEditor, SceneScreen, SmartAppsScreen, SmartCreateScreen } from "@/components/screens/scenes";
+import { SceneCreateScreen, SceneEditor, SceneScreen, SmartAppsScreen, SmartCreateScreen, ValvePlanScreen } from "@/components/screens/scenes";
 import { AppStateProvider, useApp } from "@/lib/app-state";
 import { NavProvider, useNav, type Route, type TabId } from "@/lib/nav";
 
@@ -191,6 +191,8 @@ function Screen({
       return <SceneScreen fixedKind={route.kind} />;
     case "scene-create":
       return <SceneCreateScreen />;
+    case "valve-plan":
+      return <ValvePlanScreen />;
     case "smart-create":
       return <SmartCreateScreen prompt={route.prompt} />;
     case "smart-apps":

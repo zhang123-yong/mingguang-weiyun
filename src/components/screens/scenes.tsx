@@ -391,16 +391,31 @@ const TRIGGERS: {
   { title: "灾害预警", example: "例如：暴雨、暴雪等24小时灾害预警", kind: "auto", when: "暴雨暴雪预警", tint: "#5B8CFF", mark: "rain" },
 ];
 
+let sceneQuickOpen = false;
+
 export function SceneCreateScreen() {
   const { pop, push } = useNav();
+  const [quick, setQuick] = useState(sceneQuickOpen);
+  function showQuick(open: boolean) {
+    sceneQuickOpen = open;
+    setQuick(open);
+  }
   function edit(kind: "tap" | "auto", initialName: string, initialWhen: string) {
+    showQuick(false);
     pop();
     push({ name: "scene-edit", kind, initialName, initialWhen });
+  }
+  function back() {
+    if (quick) {
+      showQuick(false);
+      return;
+    }
+    pop();
   }
   return (
     <div className="relative flex h-full flex-col bg-[#F4F6F8]">
       <header className="grid h-12 grid-cols-[40px_1fr_40px] items-center px-2">
-        <button type="button" aria-label="返回" onClick={pop} className="grid size-10 place-items-center text-[28px]">‹</button>
+        <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
         <h1 className="text-center text-[17px] font-medium">创建场景</h1>
         <span />
       </header>
@@ -424,23 +439,161 @@ export function SceneCreateScreen() {
           ))}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => push({ name: "smart-create" })}
-        className="absolute bottom-[72px] right-4 flex h-11 items-center gap-2 rounded-full bg-white px-3 shadow-[0_8px_24px_rgba(20,24,40,0.12)]"
-      >
-        <SwirlMark className="size-7" />
-        <span className="pr-1 text-[14px]">AI创建</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => edit("tap", "新的手动执行", "点击执行")}
-        className="flex h-14 items-center justify-center gap-2 border-t border-[#F0F0F0] bg-white text-[15px]"
-      >
-        <Info className="size-4 text-[#666]" />
-        点击快速创建场景
-      </button>
+      {quick ? null : (
+        <button
+          type="button"
+          onClick={() => push({ name: "smart-create" })}
+          className="absolute bottom-[72px] right-4 z-10 flex h-11 items-center gap-2 rounded-full bg-white px-3 shadow-[0_8px_24px_rgba(20,24,40,0.12)]"
+        >
+          <SwirlMark className="size-7" />
+          <span className="pr-1 text-[14px]">AI创建</span>
+        </button>
+      )}
+      {quick ? null : (
+        <button
+          type="button"
+          onClick={() => showQuick(true)}
+          className="flex h-14 items-center justify-center gap-2 border-t border-[#F0F0F0] bg-white text-[15px]"
+        >
+          <Info className="size-4 text-[#666]" />
+          点击快速创建场景
+        </button>
+      )}
+      {quick ? (
+        <div className="absolute inset-x-0 bottom-0 top-12 z-20 flex flex-col bg-[#F7F8FB]">
+          <div className="flex h-14 items-center justify-center gap-2 rounded-t-3xl bg-white text-[15px] shadow-[0_-6px_16px_rgba(20,24,40,0.04)]">
+            <Info className="size-4 text-[#666]" />
+            点击快速创建场景
+          </div>
+          <div className="min-h-0 flex-1 bg-white px-4">
+            <p className="pb-3 text-[16px] font-semibold">自动化</p>
+            <div className="relative h-24 overflow-hidden rounded-2xl bg-gradient-to-br from-[#5B9BFF] via-[#3B82F6] to-[#2F6BFF] px-4 py-4 text-white">
+              <p className="text-[16px]">温控阀-暖气节能</p>
+              <span className="absolute bottom-2 right-16 text-white/30"><BoltMark /></span>
+              <button type="button" aria-label="打开温控阀节能" onClick={() => push({ name: "valve-plan" })} className="absolute right-4 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/25">
+                <Plus className="size-5" />
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => push({ name: "smart-create" })}
+            className="absolute bottom-8 right-4 flex h-11 items-center gap-2 rounded-full bg-white px-3 shadow-[0_8px_24px_rgba(20,24,40,0.12)]"
+          >
+            <SwirlMark className="size-7" />
+            <span className="pr-1 text-[14px]">AI创建</span>
+          </button>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+export function ValvePlanScreen() {
+  const { pop, push, notify } = useNav();
+  const [picking, setPicking] = useState(false);
+  const [more, setMore] = useState(false);
+  const [temp, setTemp] = useState("");
+  return (
+    <div className="relative flex h-full flex-col bg-gradient-to-b from-[#E7F1FF] to-[#F7F9FC] text-[#222]">
+      <header className="flex items-center justify-between px-2 pt-2">
+        <button type="button" aria-label="返回" onClick={pop} className="grid size-10 place-items-center text-[28px]">‹</button>
+        <span className="flex h-9 items-center rounded-full border border-[#E6E6E6] bg-white/80 pl-2">
+          <button type="button" aria-label="更多" onClick={() => setMore((open) => !open)} className="px-1 text-[16px] tracking-widest">···</button>
+          <span className="mx-1 h-4 w-px bg-[#E6E6E6]" />
+          <button type="button" aria-label="关闭" onClick={pop} className="grid size-8 place-items-center text-[18px]">×</button>
+        </span>
+      </header>
+      {more ? (
+        <div className="absolute right-4 top-14 z-30 w-32 overflow-hidden rounded-2xl bg-white py-1 shadow-xl">
+          <button type="button" className="block w-full px-4 py-3 text-left text-[14px]" onClick={() => { setMore(false); push({ name: "feedback" }); }}>反馈</button>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-16">
+        <h1 className="px-1 pt-2 text-[26px] font-bold leading-tight">温控阀-暖气节能</h1>
+        <p className="px-1 pt-2 text-[13px] leading-6 text-[#8A9098]">根据室外天气和室内温度调整温度设置，保持室内舒适并节约能耗，开启时请设置您常设置的暖气温度</p>
+        <span className="mx-1 mt-4 block size-4 rounded-sm border border-[#E4E7EE] bg-white" />
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+          <div className="flex items-center justify-between text-[16px]">设备<ChevronRight className="size-4 text-[#C8C8C8]" /></div>
+          <div className="mt-4 flex items-center gap-3">
+            <ValveMark />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px]">温控阀</span>
+              <span className="mt-1 inline-block rounded bg-[#FFF3D6] px-1.5 py-0.5 text-[11px] text-[#E6A23C]">必选</span>
+            </span>
+            <button type="button" onClick={() => setPicking(true)} className="h-8 rounded-full bg-[#3A8DFF] px-4 text-[14px] text-white">添加</button>
+          </div>
+          <button type="button" onClick={() => setPicking(true)} className="mt-4 block w-full text-center text-[15px] text-[#3A8DFF]">编辑</button>
+        </section>
+        <section className="mt-3 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(20,24,40,0.04)]">
+          <div className="flex items-center justify-between text-[16px]">设置<ChevronRight className="size-4 text-[#C8C8C8]" /></div>
+          <div className="mt-4 flex items-center justify-between">
+            <span className="text-[15px] text-[#8A9098]">{temp || "未设置"}</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (!temp) setTemp("22°C");
+                notify(temp ? `暖气温度 ${temp}` : "已记下常用暖气温度 22°C");
+              }}
+              className="h-8 rounded-full bg-[#3A8DFF] px-4 text-[14px] text-white"
+            >
+              设置
+            </button>
+          </div>
+        </section>
+      </div>
+      <p className="pb-6 text-center text-[13px] text-[#A0A4AA]">您还没有支持节能服务的设备，请先添加设备</p>
+      {picking ? (
+        <div className="absolute inset-0 z-20 bg-black/35" onClick={() => setPicking(false)}>
+          <div className="absolute inset-x-0 bottom-0 top-[18%] flex flex-col rounded-t-3xl bg-white" onClick={(event) => event.stopPropagation()}>
+            <div className="grid h-12 grid-cols-[40px_1fr_56px] items-center px-2">
+              <button type="button" aria-label="返回选择" onClick={() => setPicking(false)} className="grid size-10 place-items-center text-[28px]">‹</button>
+              <h2 className="text-center text-[17px] font-medium">选择设备</h2>
+              <button type="button" className="text-right text-[15px]" onClick={() => notify("已重置")}>重置</button>
+            </div>
+            <div className="px-4">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#3A8DFF] px-3 py-1.5 text-[14px] text-white"><ValveMark light />温控阀 0</span>
+              <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[#F0F0F0] px-3 py-3">
+                <EmptyDevice />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px]">暂无设备</span>
+                  <span className="mt-1 inline-block rounded bg-[#FFF3D6] px-1.5 py-0.5 text-[11px] text-[#E6A23C]">必选</span>
+                </span>
+                <button type="button" onClick={() => push({ name: "add" })} className="h-8 rounded-full bg-[#3A8DFF] px-4 text-[14px] text-white">去添加</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BoltMark() {
+  return (
+    <svg viewBox="0 0 48 48" className="size-14" aria-hidden>
+      <path d="M26 4 10 28h12l-4 16 20-26H26l4-14Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ValveMark({ light = false }: { light?: boolean }) {
+  const ink = light ? "#fff" : "#8AA0B4";
+  return (
+    <svg viewBox="0 0 36 36" className="size-9" aria-hidden>
+      <rect x="14" y="4" width="8" height="8" rx="1" fill={ink} />
+      <path d="M8 16h20v4H8zM12 20h12v8H12z" fill={ink} />
+      <path d="M10 28h6M20 28h6" stroke={ink} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function EmptyDevice() {
+  return (
+    <svg viewBox="0 0 40 40" className="size-10" aria-hidden>
+      <rect x="6" y="10" width="28" height="20" rx="3" fill="#EEF3F8" stroke="#C5D0DC" />
+      <path d="M14 18h12M16 22h8" stroke="#9AABBC" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   );
 }
 
