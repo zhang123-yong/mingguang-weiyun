@@ -21,6 +21,7 @@ import {
 import { useApp } from "@/lib/app-state";
 import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
 import { useNav } from "@/lib/nav";
+import { LockAlbum } from "@/components/screens/lock-album";
 
 const FAQS: [string, string][] = [
   ["门锁屏不亮了，怎么办？", "先换一组新的干电池，并确认锂电池有电。长按后面板复位键 5 秒后重新上电。演示环境不会连接真实门锁。"],
@@ -730,21 +731,7 @@ export function LockPanel({ device }: { device: Device }) {
         ) : null}
 
         {page.id === "album" ? (
-          <section>
-            <Bar title="相册/日志" onBack={back} />
-            <p className="px-5 pt-2 text-[13px] text-[#8e8e93]">相册</p>
-            <div className="mx-4 rounded-2xl bg-white px-4">
-              {panel.album.length ? panel.album.map((clip) => (
-                <div key={clip.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>门口录像</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{clip.time}</small></div>
-              )) : <p className="py-4 text-[#8e8e93]">还没有录像。在视频监控里点录像，停止后会出现在这里。</p>}
-            </div>
-            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">日志</p>
-            <div className="mx-4 rounded-2xl bg-white px-4">
-              {device.logs.length ? device.logs.map((item) => (
-                <div key={item.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>{item.text}</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{item.time}</small></div>
-              )) : <p className="py-4 text-[#8e8e93]">还没有门铃或开锁记录。</p>}
-            </div>
-          </section>
+          <LockAlbum device={device} panel={panel} onBack={back} onCloud={() => open({ id: "services" })} notify={notify} />
         ) : null}
 
         {page.id === "gear" ? (
