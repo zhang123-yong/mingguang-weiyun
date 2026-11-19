@@ -117,7 +117,6 @@ export function LockPanel({ device }: { device: Device }) {
   const [frameWidth, setFrameWidth] = useState(0);
   const [removeAsk, setRemoveAsk] = useState(false);
   const [noticeSheet, setNoticeSheet] = useState(false);
-  const [noticeSlide, setNoticeSlide] = useState(0);
   const [editingName, setEditingName] = useState(false);
   const frame = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean; key: string; axis: "x" | "y" | null } | null>(null);
@@ -839,96 +838,17 @@ export function LockPanel({ device }: { device: Device }) {
               <button type="button" aria-label="关闭" onClick={() => setNoticeSheet(false)} className="absolute right-4 text-[22px] text-[#222]">×</button>
             </div>
             <div className="px-4">
-              <div className="relative h-[132px] overflow-hidden rounded-2xl">
-                {noticeSlide === 0 ? (
-                  <div className="grid h-full grid-cols-[minmax(0,1.55fr)_0.5fr_0.58fr_0.7fr] gap-[2px] bg-[#E8E4DE]">
-                    <div className="relative flex flex-col justify-center overflow-hidden bg-gradient-to-b from-[#E7D3BE] to-[#C4A07A] px-2.5 text-white">
-                      <svg viewBox="0 0 80 90" className="pointer-events-none absolute bottom-0 right-0 h-[78%] w-auto opacity-90" aria-hidden>
-                        <rect x="8" y="62" width="64" height="28" rx="2" fill="#A67C52" />
-                        <rect x="8" y="62" width="64" height="6" fill="#C4A07A" />
-                        <path d="M34 62c2-16 4-28 6-36 2 8 4 20 6 36" fill="#8C6A4A" />
-                        <ellipse cx="40" cy="24" rx="10" ry="6" fill="#6B8F71" />
-                        <ellipse cx="32" cy="28" rx="7" ry="4" fill="#7EA184" />
-                        <ellipse cx="48" cy="27" rx="7" ry="4" fill="#5E7C64" />
-                      </svg>
-                      <p className="relative whitespace-nowrap text-[15px] font-semibold leading-5">本地录像会丢？</p>
-                      <p className="relative mt-1 whitespace-nowrap text-[10px] leading-4">开通门锁云存，录像永不丢失！</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNoticeSheet(false);
-                          open({ id: "services" });
-                        }}
-                        className="relative mt-2 h-6 w-fit rounded-full bg-[#2BD18A] px-2.5 text-[11px] text-white"
-                      >
-                        立即开通
-                      </button>
-                    </div>
-                    <div className="grid grid-rows-2 gap-[2px]">
-                      <div className="relative overflow-hidden bg-[#243044]">
-                        <svg viewBox="0 0 60 40" className="h-full w-full" aria-hidden>
-                          <rect width="60" height="40" fill="#2A3848" />
-                          <path d="M28 40V18h8v22" fill="#1B2430" />
-                          <circle cx="32" cy="14" r="4" fill="#C9B8A4" />
-                          <path d="M24 40l8-14 8 14" fill="#3D4C5C" />
-                        </svg>
-                      </div>
-                      <div className="relative overflow-hidden bg-[#E7D7C3]">
-                        <svg viewBox="0 0 60 40" className="h-full w-full" aria-hidden>
-                          <rect width="60" height="40" fill="#EFE3D4" />
-                          <rect x="8" y="16" width="18" height="14" rx="1" fill="#C4A574" />
-                          <rect x="28" y="12" width="20" height="18" rx="1" fill="#D7B48A" />
-                          <rect x="18" y="22" width="14" height="12" fill="#B8956A" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="relative overflow-hidden bg-[#F4EFE8]">
-                      <svg viewBox="0 0 70 120" className="h-full w-full" aria-hidden>
-                        <rect width="70" height="120" fill="#F7F1EA" />
-                        <rect x="18" y="8" width="34" height="104" rx="3" fill="#E4DDD4" />
-                        <rect x="28" y="28" width="14" height="52" rx="7" fill="#2C2C2C" />
-                        <circle cx="35" cy="62" r="3" fill="#C9A36A" />
-                        <rect x="32" y="70" width="6" height="10" rx="1" fill="#1A1A1A" />
-                      </svg>
-                    </div>
-                    <div className="relative overflow-hidden bg-[#D5E2D4]">
-                      <svg viewBox="0 0 80 120" className="h-full w-full" aria-hidden>
-                        <rect width="80" height="120" fill="#D7E4D6" />
-                        <rect x="46" y="18" width="28" height="70" fill="#F4F0EA" />
-                        <polygon points="42,18 74,8 74,18" fill="#E7D3BE" />
-                        <rect x="54" y="48" width="14" height="40" fill="#C9B8A4" />
-                        <circle cx="28" cy="46" r="7" fill="#E8CDB8" />
-                        <rect x="20" y="54" width="16" height="28" rx="3" fill="#3D6BBE" />
-                        <circle cx="18" cy="42" r="6" fill="#E8CDB8" />
-                        <rect x="10" y="50" width="14" height="26" rx="3" fill="#F2F4F7" />
-                      </svg>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNoticeSheet(false);
-                      open({ id: "services" });
-                    }}
-                    className="flex h-full w-full flex-col justify-center bg-gradient-to-r from-[#1E4D45] to-[#2E8A6A] px-5 text-left text-white"
-                  >
-                    <p className="text-[16px] font-semibold">云端回看，演示开通</p>
-                    <p className="mt-1 text-[12px] text-white/85">套餐只在本机演示，不会扣费。</p>
-                    <span className="mt-3 h-6 w-fit rounded-full bg-[#2BD18A] px-2.5 text-[11px] leading-6">查看套餐</span>
-                  </button>
-                )}
-                <div className="absolute bottom-2 left-[18%] flex gap-1.5">
-                  {[0, 1].map((index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      aria-label={index === 0 ? "云存广告" : "套餐说明"}
-                      onClick={() => setNoticeSlide(index)}
-                      className={`size-1.5 rounded-full ${noticeSlide === index ? "bg-white" : "bg-white/55"}`}
-                    />
-                  ))}
-                </div>
+              <div className="relative overflow-hidden rounded-2xl">
+                <img src="/cloud-storage-banner.png" alt="本地录像会丢？开通门锁云存，录像永不丢失！" className="block w-full" />
+                <button
+                  type="button"
+                  aria-label="立即开通"
+                  onClick={() => {
+                    setNoticeSheet(false);
+                    open({ id: "services" });
+                  }}
+                  className="absolute left-[4%] top-[58%] h-[24%] w-[20%]"
+                />
               </div>
             </div>
           </div>
