@@ -7,19 +7,25 @@ import {
   ChevronLeft,
   ChevronRight,
   Grid3x3,
+  Image as PhotoIcon,
   Info,
   List,
   Lock,
+  Mic,
   Pencil,
   Settings,
   ToggleRight,
   UserRound,
   Video,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
-import { lockPanelOf, productOf, rid, type Device, type LockPanelState, type UnlockAccess } from "@/lib/model";
+import { lockPanelOf, nowLabel, productOf, rid, type Device, type LockPanelState, type UnlockAccess } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 import { LockAlbum, lockPreviewText } from "@/components/screens/lock-album";
+
+const VOICE_TONES = ["原声", "大叔", "小丑"] as const;
 
 const ACCESS_OPTIONS: { id: UnlockAccess; label: string }[] = [
   { id: "admin", label: "仅管理员可以使用" },
@@ -116,6 +122,13 @@ export function LockPanel({ device }: { device: Device }) {
   const [phone, setPhone] = useState(panel.boundPhone);
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [talking, setTalking] = useState(false);
+  const [tone, setTone] = useState(0);
+  const [recordFrom, setRecordFrom] = useState<number | null>(null);
+  const [recordNow, setRecordNow] = useState(0);
+  const [shutter, setShutter] = useState(false);
+  const [stamp, setStamp] = useState("");
+  const holdTarget = useRef<"lock" | "talk" | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -160,6 +173,20 @@ export function LockPanel({ device }: { device: Device }) {
   }, []);
 
   useEffect(() => {
+    if (recordFrom === null) return;
+    const timer = window.setInterval(() => setRecordNow(Date.now()), 200);
+    return () => window.clearInterval(timer);
+  }, [recordFrom]);
+
+  useEffect(() => {
+    if (page.id !== "live" || connecting) return;
+    const tick = () => setStamp(shanghaiClock());
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [page.id, connecting]);
+
+  useEffect(() => {
     if (!wifiOpen) return;
     const close = (event: Event) => {
       if (!wifiBox.current?.contains(event.target as Node)) setWifiOpen(false);
@@ -192,20 +219,63 @@ export function LockPanel({ device }: { device: Device }) {
   }
 
   function back() {
+    setTalking(false);
+    if (page.id === "live" && recordFrom !== null && (Date.now() - recordFrom) / 1000 >= 1) saveClip("video");
+    else setRecordFrom(null);
     setDialog(null);
     if (stack.length > 1) setStack((current) => current.slice(0, -1));
     else pop();
   }
 
-  function holdProps(hint: string, fire: () => void) {
+  function saveClip(kind: "shot" | "video") {
+    const album = [{ id: rid(), time: nowLabel(), kind }, ...panel.album].slice(0, 12);
+    setRecordFrom(null);
+    save({ ...panel, recording: false, album }, kind === "shot" ? "已截图" : "录像已保存至本地相册");
+    notify(kind === "shot" ? "已保存到相册" : "录像已保存至本地相册");
+  }
+
+  function shoot() {
+    setShutter(true);
+    window.setTimeout(() => setShutter(false), 160);
+    const album = [{ id: rid(), time: nowLabel(), kind: "shot" as const }, ...panel.album].slice(0, 12);
+    save({ ...panel, album, recording: recordFrom !== null }, "已截图");
+    notify("已保存到相册");
+  }
+
+  function toggleRecord() {
+    if (recordFrom === null) {
+      const started = Date.now();
+      setRecordFrom(started);
+      setRecordNow(started);
+      save({ ...panel, recording: true });
+      notify("开始录像");
+      return;
+    }
+    if ((Date.now() - recordFrom) / 1000 < 1) {
+      notify("至少录制 1 秒后才能停止");
+      return;
+    }
+    saveClip("video");
+  }
+
+  function toggleTalk() {
+    const next = !talking;
+    setTalking(next);
+    notify(next ? "开始对讲" : "对讲已结束");
+    if (next) pushLog(device.id, "开始对讲");
+  }
+
+  function holdProps(hint: string, fire: () => void, target: "lock" | "talk" = "lock") {
     function stop() {
       if (hold.current) window.clearTimeout(hold.current);
+      holdTarget.current = null;
       setHolding(false);
     }
     return {
       onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
         event.currentTarget.setPointerCapture(event.pointerId);
         fired.current = false;
+        holdTarget.current = target;
         setHolding(true);
         if (hold.current) window.clearTimeout(hold.current);
         hold.current = window.setTimeout(() => {
@@ -455,12 +525,13 @@ export function LockPanel({ device }: { device: Device }) {
         ) : null}
 
         {page.id === "live" ? (
-          <section className="flex min-h-full flex-col bg-[#3A3A3A] text-white">
-            <div className="flex h-12 items-center px-2">
-              <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
-            </div>
+          <section className="relative min-h-full overflow-hidden bg-[#7d8794] text-white">
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,#e7edf3_0%,#c5ced8_34%,#8b95a3_100%)]" />
+            <div className="absolute top-[12%] left-[8%] h-[28%] w-[30%] rounded-sm bg-[#f4f7fb] shadow-[inset_0_0_0_8px_#d5dde6]" />
+            <div className="absolute top-[18%] right-[-8%] h-[78%] w-[58%] rounded-[40%] bg-[#66707d]/35" />
             {connecting ? (
-              <div className="grid flex-1 place-items-center pb-16">
+              <div className="absolute inset-0 z-10 grid place-items-center bg-[#3A3A3A]">
+                <button type="button" aria-label="返回" onClick={back} className="absolute top-1 left-1 grid size-10 place-items-center text-[28px]">‹</button>
                 <div className="text-center">
                   <span className="mx-auto block size-8 animate-spin rounded-full border-2 border-white/25 border-t-white" />
                   <p className="mt-4 text-[15px] text-[#C8C8C8]">正在连接门锁</p>
@@ -468,32 +539,96 @@ export function LockPanel({ device }: { device: Device }) {
               </div>
             ) : (
               <>
-                <div className="grid flex-1 place-items-center px-6">
-                  <div className="text-center text-[#C8C8C8]">
-                    <StreamMark />
-                    <p className="mt-3 text-[15px]">正在获取视频流</p>
+                <div className="absolute inset-x-0 top-0 z-10 flex items-center gap-1 px-1 pt-1">
+                  <button type="button" aria-label="返回" onClick={back} className="grid size-10 shrink-0 place-items-center text-[28px] drop-shadow">‹</button>
+                  <p className="min-w-0 flex-1 truncate text-[13px] drop-shadow">{stamp}</p>
+                  <div className="mr-2 flex h-8 shrink-0 items-center rounded-full bg-black/45 p-0.5 text-[13px]">
+                    {(["高清", "标清"] as const).map((level) => {
+                      const active = (panel.clarity === "标清" ? "标清" : "高清") === level;
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          aria-label={level}
+                          aria-pressed={active}
+                          onClick={() => save({ ...panel, clarity: level, recording: recordFrom !== null })}
+                          className={`h-7 rounded-full px-2.5 ${active ? "bg-white font-medium text-[#222]" : "text-white/80"}`}
+                        >
+                          {level}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="px-4 pb-6">
-                  <div className="rounded-[22px] bg-[#242424] px-4 py-6">
+                <button
+                  type="button"
+                  aria-label="原声"
+                  onClick={() => {
+                    const next = (tone + 1) % VOICE_TONES.length;
+                    setTone(next);
+                    notify(`已切换为${VOICE_TONES[next]}`);
+                  }}
+                  className="absolute top-[58%] left-5 z-10 flex flex-col items-center"
+                >
+                  <span className="grid size-12 place-items-center rounded-full bg-white text-[#3A7BFF]">
+                    <VoiceBars />
+                  </span>
+                  <span className="mt-1 text-[12px] drop-shadow">{VOICE_TONES[tone]}</span>
+                </button>
+                {talking ? <div className="absolute top-16 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/55 px-4 py-1 text-[13px]">对讲中</div> : null}
+                {recordFrom !== null ? (
+                  <div className="absolute top-16 left-4 z-10 flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-[13px]">
+                    <i className="size-2 rounded-full bg-[#FF3B30]" />
+                    {recordClock(recordFrom, recordNow)}
+                  </div>
+                ) : null}
+                {shutter ? <div className="absolute inset-0 z-20 bg-white/80" /> : null}
+                <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-7">
+                  <div className="mb-5 flex items-center justify-between px-8">
+                    <button type="button" aria-label="静音" aria-pressed={panel.muted} onClick={() => { save({ ...panel, muted: !panel.muted, recording: recordFrom !== null }); notify(panel.muted ? "已打开声音" : "已静音"); }} className="grid size-10 place-items-center">
+                      {panel.muted ? <VolumeX className="size-7" /> : <Volume2 className="size-7" />}
+                    </button>
+                    <button type="button" aria-label="截图" onClick={shoot} className="grid size-10 place-items-center">
+                      <PhotoIcon className="size-7" />
+                    </button>
+                    <button type="button" aria-label="录像" aria-pressed={recordFrom !== null} onClick={toggleRecord} className={`grid size-10 place-items-center ${recordFrom !== null ? "text-[#FF3B30]" : ""}`}>
+                      <Video className="size-7" />
+                    </button>
+                  </div>
+                  <div className="flex items-start justify-between px-2">
+                    {panel.talkMode === "one" ? (
+                      <button type="button" aria-label="按住对讲" {...holdProps("请按住对讲", () => { pushLog(device.id, "对讲成功"); notify("对讲成功"); }, "talk")} className="flex flex-col items-center">
+                        <span className={`grid size-[72px] place-items-center rounded-full text-[#20C6A4] ${holding && holdTarget.current === "talk" ? "bg-[#20C6A4] text-white" : "bg-white"}`}>
+                          <Mic className="size-8" />
+                        </span>
+                        <span className="mt-2 text-[13px] drop-shadow">按住对讲</span>
+                      </button>
+                    ) : (
+                      <button type="button" aria-label="点击对讲" aria-pressed={talking} onClick={toggleTalk} className="flex flex-col items-center">
+                        <span className={`grid size-[72px] place-items-center rounded-full ${talking ? "bg-[#20C6A4] text-white" : "bg-white text-[#20C6A4]"}`}>
+                          <Mic className="size-8" />
+                        </span>
+                        <span className="mt-2 text-[13px] drop-shadow">{talking ? "对讲中" : "点击对讲"}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       aria-label={unlocked ? "长按上锁" : "长按开锁"}
                       {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}
-                      className="mx-auto flex flex-col items-center"
+                      className="flex flex-col items-center"
                     >
                       <span className="relative grid size-[76px] place-items-center">
-                        {holding ? (
+                        {holding && holdTarget.current === "lock" ? (
                           <svg viewBox="0 0 76 76" className="absolute inset-0 size-full">
-                            <circle cx="38" cy="38" r="34" fill="none" stroke="#1a4f45" strokeWidth="3" />
-                            <circle cx="38" cy="38" r="34" fill="none" stroke="#20C6A4" strokeWidth="3" strokeLinecap="round" strokeDasharray="54 160" className="lock-ring-spin" />
+                            <circle cx="38" cy="38" r="34" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="3" />
+                            <circle cx="38" cy="38" r="34" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeDasharray="54 160" className="lock-ring-spin" />
                           </svg>
                         ) : null}
                         <span className="grid size-16 place-items-center rounded-full bg-[#20C6A4] text-white">
                           <Lock className="size-7" />
                         </span>
                       </span>
-                      <span className="mt-3 text-[14px] text-[#D5D5D5]">{unlocked ? "长按上锁" : "长按开锁"}</span>
+                      <span className="mt-2 text-[13px] drop-shadow">{unlocked ? "长按上锁" : "长按开锁"}</span>
                     </button>
                   </div>
                 </div>
@@ -1038,14 +1173,37 @@ export function LockPanel({ device }: { device: Device }) {
   );
 }
 
-function StreamMark() {
+function VoiceBars() {
   return (
-    <svg viewBox="0 0 48 48" className="mx-auto size-12" aria-hidden>
-      <path d="M18 16a8 8 0 0 1 12 0" fill="none" stroke="#C8C8C8" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M14 12a14 14 0 0 1 20 0" fill="none" stroke="#C8C8C8" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M17 24c1.2 2.4 3.2 4 7 4s5.8-1.6 7-4l3.2 1.6c.8.4 1.2 1.3.9 2.2l-1.4 4.2a2 2 0 0 1-1.9 1.4h-2.2l-1.6 5.2h-8l-1.6-5.2H16a2 2 0 0 1-1.9-1.4l-1.4-4.2a1.8 1.8 0 0 1 .9-2.2L17 24Z" fill="none" stroke="#C8C8C8" strokeWidth="1.6" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" className="size-6" aria-hidden>
+      <rect x="3" y="10" width="3" height="8" rx="1" fill="currentColor" />
+      <rect x="8.5" y="6" width="3" height="12" rx="1" fill="currentColor" />
+      <rect x="14" y="8" width="3" height="10" rx="1" fill="currentColor" />
+      <rect x="18" y="11" width="3" height="7" rx="1" fill="currentColor" />
     </svg>
   );
+}
+
+function shanghaiClock(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${pick("year")}-${pick("month")}-${pick("day")} ${pick("hour")}:${pick("minute")}:${pick("second")}`;
+}
+
+function recordClock(from: number, now: number) {
+  const total = Math.max(0, Math.floor((now - from) / 1000));
+  const minutes = String(Math.floor(total / 60)).padStart(2, "0");
+  const seconds = String(total % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
 function batteryFill(percent: number) {
