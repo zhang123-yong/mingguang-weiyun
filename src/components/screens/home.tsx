@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AudioLines,
   BadgeCheck,
   ChevronDown,
   ChevronRight,
+  CloudUpload,
   Compass,
+  Folder,
   House,
+  Leaf,
+  Lock,
   Menu,
+  MessageCircle,
   Mic,
   Plus,
   Sparkles,
@@ -432,57 +437,152 @@ function LightsThumb() {
 
 function DiscoverPane() {
   const { data } = useApp();
-  const { push } = useNav();
-  const homeName = (data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0])?.name ?? "我的家";
+  const { push, notify } = useNav();
+  const [badges, setBadges] = useState({ energy: true, sms: true, notes: true });
+  const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
+  const lock = data.devices.find((device) => device.homeId === home?.id && device.kind === "lock");
+
+  function openLock() {
+    if (!lock) {
+      notify("当前家庭还没有门锁");
+      return;
+    }
+    push({ name: "device", id: lock.id });
+  }
+
+  function open(route: Parameters<typeof push>[0], badge?: keyof typeof badges) {
+    if (badge) setBadges((current) => ({ ...current, [badge]: false }));
+    push(route);
+  }
+
   return (
-    <div className="flex h-full flex-col">
-      <AppHeader title={homeName} right={<span className="px-2 text-[20px] tracking-widest text-[#666]">···</span>} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <button type="button" onClick={() => push({ name: "energy" })} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left">
-          <Zap className="size-6 text-[#F5B400]" />
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2 text-[16px] font-medium">AI 节能 <span className="size-1.5 rounded-full bg-[#E23B3B]" /></span>
-            <span className="mt-1 block text-[12px] text-[#98A0AA]">了解家庭智能设备的能耗状况，获取节能建议</span>
-          </span>
-          <ChevronRight className="size-4 text-[#CCC]" />
-        </button>
-        <div className="mt-3 overflow-hidden rounded-2xl bg-white">
-          <button type="button" onClick={() => push({ name: "notes" })} className="flex w-full items-center gap-3 border-b border-[#F4F5F7] px-4 py-4 text-left">
-            <span className="grid size-8 place-items-center rounded-lg bg-[#E8F0FF] text-[#3A7BFF]">记</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[16px]">AI 笔记</span>
-              <span className="mt-1 block text-[12px] text-[#98A0AA]">录音转写，一键总结</span>
-            </span>
-            <ChevronRight className="size-4 text-[#CCC]" />
+    <div className="flex h-full flex-col bg-gradient-to-b from-[#EEF3FA] to-[#F7F8FB]">
+      <AppHeader
+        title={home?.name ?? "我的家"}
+        right={
+          <button type="button" aria-label="更多" onClick={() => push({ name: "family" })} className="px-1 text-[22px] leading-none tracking-widest text-[#222]">
+            ···
           </button>
-          <button type="button" onClick={() => push({ name: "translate" })} className="flex w-full items-center gap-3 px-4 py-4 text-left">
-            <span className="grid size-8 place-items-center rounded-lg bg-[#FFF1E4] text-[#FF8A2A]">译</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[16px]">AI 翻译</span>
-              <span className="mt-1 block text-[12px] text-[#98A0AA]">AI大模型驱动，准确又自然</span>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+        <p className="px-1 text-[16px] font-medium">最近使用</p>
+        <div className="mt-4 grid grid-cols-3">
+          <RecentItem label="AI节能" onClick={() => open({ name: "energy" }, "energy")}>
+            <span className="grid size-14 place-items-center rounded-full bg-white shadow-[0_4px_14px_rgba(20,24,40,0.05)]">
+              <Zap className="size-7 text-[#F5C542]" fill="#F5C542" />
             </span>
-            <ChevronRight className="size-4 text-[#CCC]" />
-          </button>
+          </RecentItem>
+          <RecentItem label="AI舒适空间" onClick={() => open({ name: "environment" })}>
+            <span className="grid size-14 place-items-center rounded-full bg-white shadow-[0_4px_14px_rgba(20,24,40,0.05)]">
+              <Leaf className="size-7 text-[#3DDC84]" fill="#3DDC84" />
+            </span>
+          </RecentItem>
+          <RecentItem label="AI翻译" onClick={() => open({ name: "translate" })}>
+            <span className="grid size-14 place-items-center rounded-full bg-white shadow-[0_4px_14px_rgba(20,24,40,0.05)]">
+              <TranslateMark />
+            </span>
+          </RecentItem>
         </div>
-        <button type="button" onClick={() => push({ name: "cast" })} className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left">
-          <span className="grid size-8 place-items-center rounded-lg bg-[#F3E8FF] text-[#7C3AED]">投</span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[16px]">手机投屏</span>
-            <span className="mt-1 block text-[12px] text-[#98A0AA]">把手机画面投到电视或陪伴设备</span>
-          </span>
-          <ChevronRight className="size-4 text-[#CCC]" />
-        </button>
-        <button type="button" onClick={() => push({ name: "agents" })} className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left">
-          <span className="flex-1 text-[16px]">更多 AI Agent</span>
-          <span className="flex -space-x-1">
-            <span className="grid size-6 place-items-center rounded-full bg-[#E7F8EF] text-[10px]">宠</span>
-            <span className="grid size-6 place-items-center rounded-full bg-[#FFF4D8] text-[10px]">锁</span>
-            <span className="grid size-6 place-items-center rounded-full bg-[#E8F0FF] text-[10px]">电</span>
-          </span>
-          <ChevronRight className="size-4 text-[#CCC]" />
-        </button>
+        <div className="mt-5 overflow-hidden rounded-[20px] bg-white">
+          <DiscoverRow
+            icon={<CloudUpload className="size-6 text-[#3A8DFF]" />}
+            title="AI安全守护（云存储）"
+            body="云存储全新升级，AI智能总结、巡检哨兵，智能守护您的安全"
+            onClick={openLock}
+          />
+          <DiscoverRow
+            icon={<Zap className="size-6 text-[#F5C542]" fill="#F5C542" />}
+            title="AI节能"
+            body="了解家庭智能设备的能耗状况，获取节能建议"
+            badge={badges.energy}
+            onClick={() => open({ name: "energy" }, "energy")}
+          />
+          <DiscoverRow
+            icon={<MessageCircle className="size-6 text-[#F6B429]" fill="#F6B429" />}
+            title="短信和电话通知"
+            body="接收设备警报和场景通知消息"
+            badge={badges.sms}
+            onClick={() => open({ name: "messages" }, "sms")}
+          />
+          <DiscoverRow
+            icon={<Lock className="size-6 text-[#3A4250]" />}
+            title="门锁服务"
+            body="开通和管理智能门锁云存储、AI等精选服务"
+            last
+            onClick={openLock}
+          />
+        </div>
+        <div className="mt-3 overflow-hidden rounded-[20px] bg-white">
+          <DiscoverRow
+            icon={
+              <span className="relative">
+                <Folder className="size-6 text-[#3A8DFF]" fill="#E8F1FF" />
+                {badges.notes ? <i className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-[#FF3B30]" /> : null}
+              </span>
+            }
+            title="AI笔记"
+            body="录音转写，一键总结"
+            onClick={() => open({ name: "notes" }, "notes")}
+          />
+          <DiscoverRow
+            icon={<TranslateMark />}
+            title="AI翻译"
+            body="AI大模型驱动，准确又自然"
+            last
+            onClick={() => open({ name: "translate" })}
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+function RecentItem({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="flex flex-col items-center gap-2">
+      {children}
+      <span className="text-[12px] text-[#666]">{label}</span>
+    </button>
+  );
+}
+
+function DiscoverRow({
+  icon,
+  title,
+  body,
+  badge,
+  last,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  badge?: boolean;
+  last?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className={`flex w-full items-center gap-3 px-4 py-3.5 text-left ${last ? "" : "border-b border-[#F4F5F7]"}`}>
+      <span className="grid size-9 shrink-0 place-items-center">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px]">{title}</span>
+        <span className="mt-0.5 block text-[12px] leading-5 text-[#A0A4AA]">{body}</span>
+      </span>
+      {badge ? <span className="size-1.5 shrink-0 rounded-full bg-[#FF3B30]" /> : null}
+      <ChevronRight className="size-4 shrink-0 text-[#C8C8C8]" />
+    </button>
+  );
+}
+
+function TranslateMark() {
+  return (
+    <svg viewBox="0 0 32 32" className="size-7" aria-hidden>
+      <rect x="3" y="6" width="16" height="16" rx="4" fill="#FFE7D6" />
+      <text x="11" y="18" textAnchor="middle" fontSize="11" fontWeight="700" fill="#F08A3A">文</text>
+      <rect x="13" y="12" width="16" height="16" rx="4" fill="#E7F0FF" />
+      <text x="21" y="24" textAnchor="middle" fontSize="11" fontWeight="700" fill="#3A8DFF">A</text>
+    </svg>
   );
 }
 
