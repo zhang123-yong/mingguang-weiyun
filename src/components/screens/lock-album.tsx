@@ -6,7 +6,7 @@ import type { Device, LockPanelState } from "@/lib/model";
 
 type Area = "album" | "log";
 type LogTab = "alarm" | "door";
-type EventFilter = "全部事件" | "远程解锁" | "有人按门铃";
+type EventFilter = "全部事件" | "远程解锁" | "远程关锁" | "有人按门铃";
 
 type Stamp = { key: string; hm: string; label: string };
 
@@ -19,7 +19,7 @@ type Row = {
   mine: boolean;
 };
 
-const EVENTS: EventFilter[] = ["全部事件", "远程解锁", "有人按门铃"];
+const EVENTS: EventFilter[] = ["全部事件", "远程解锁", "远程关锁", "有人按门铃"];
 const WEEK = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 function shanghaiParts(date = new Date()) {
@@ -56,10 +56,15 @@ function parseStamp(time: string): Stamp {
 
 function classify(text: string): Pick<Row, "event" | "bucket" | "mine"> | null {
   if (/门铃|逗留|告警/.test(text)) return { event: "有人按门铃", bucket: "alarm", mine: false };
-  if (/开锁|解锁|上锁/.test(text)) {
-    return { event: /上锁/.test(text) && !/开锁|解锁/.test(text) ? "其他" : "远程解锁", bucket: "door", mine: /长按|我触发/.test(text) };
+  if (/关锁|上锁/.test(text) && !/开锁|解锁/.test(text)) {
+    return { event: "远程关锁", bucket: "door", mine: /长按|我触发/.test(text) };
   }
+  if (/开锁|解锁/.test(text)) return { event: "远程解锁", bucket: "door", mine: /长按|我触发/.test(text) };
   return null;
+}
+
+function messageOf(row: Row) {
+  return row.event === "远程解锁" || row.event === "远程关锁" ? row.event : row.title;
 }
 
 function yesterdayKey() {
@@ -73,7 +78,7 @@ function matchesQuery(row: Row, keyword: string) {
   if (!keyword) return true;
   if (keyword === "昨天") return row.stamp.key === yesterdayKey();
   if (keyword === "今天") return row.stamp.label === "今天";
-  return `${row.title}${row.stamp.hm}${row.stamp.label}${row.stamp.key}`.includes(keyword);
+  return `${messageOf(row)}${row.title}${row.stamp.hm}${row.stamp.label}${row.stamp.key}`.includes(keyword);
 }
 
 function monthCells(y: number, m: number) {
@@ -226,7 +231,7 @@ export function LockAlbum({
                   <button type="button" onClick={noVideo} className="block w-full text-left">
                     <ClipFace />
                     <span className="mt-2 block text-[12px] text-[#666]">{row.stamp.key.slice(5)} {row.stamp.hm}</span>
-                    <span className="mt-1 block text-[15px]">{row.title}</span>
+                    <span className="mt-1 block text-[15px]">{messageOf(row)}</span>
                   </button>
                   <button type="button" onClick={() => notify("演示不会分析真实画面")} className="mt-1 rounded bg-[#F4F0FF] px-1.5 py-0.5 text-[11px] text-[#7C5CFF]">
                     AI 摘要
@@ -305,11 +310,11 @@ export function LockAlbum({
                   <button key={row.id} type="button" onClick={noVideo} className="flex w-full items-center gap-3 border-b border-[#F4F5F7] px-4 py-3 text-left last:border-b-0">
                     {logTab === "alarm" ? <Bell className="size-5 shrink-0 text-[#98A0AA]" /> : null}
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[16px]">{row.mine ? `我触发 ${row.title}` : row.title}</span>
+                      <span className="block text-[16px]">{row.mine ? `我触发 ${messageOf(row)}` : messageOf(row)}</span>
                       {row.mine ? <span className="mt-1 block text-[14px] text-[#12c4a0]">查看</span> : null}
                       <span className="mt-1 block text-[12px] text-[#98A0AA]">{row.stamp.hm}</span>
                     </span>
-                    {logTab === "alarm" || row.event === "远程解锁" ? (
+                    {logTab === "alarm" || row.event === "远程解锁" || row.event === "远程关锁" ? (
                       <span className="grid h-12 w-16 shrink-0 place-items-center rounded bg-[#E6E9ED] text-[#98A0AA]">
                         <Play className="size-4" />
                       </span>
