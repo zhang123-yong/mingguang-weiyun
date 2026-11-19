@@ -503,14 +503,14 @@ function DiscoverPane() {
             title="短信和电话通知"
             body="接收设备警报和场景通知消息"
             badge={badges.sms}
-            onClick={() => open({ name: "messages" }, "sms")}
+            onClick={() => open({ name: "alarm" }, "sms")}
           />
           <DiscoverRow
             icon={<Lock className="size-6 text-[#3A4250]" />}
             title="门锁服务"
             body="开通和管理智能门锁云存储、AI等精选服务"
             last
-            onClick={openLock}
+            onClick={() => open({ name: "lock-service" })}
           />
         </div>
         <div className="mt-3 overflow-hidden rounded-[20px] bg-white">

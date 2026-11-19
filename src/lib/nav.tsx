@@ -50,6 +50,8 @@ export type Route =
   | { name: "rooms"; homeId: string }
   | { name: "members"; homeId: string }
   | { name: "messages" }
+  | { name: "alarm" }
+  | { name: "lock-service" }
   | { name: "message"; id: string }
   | { name: "settings" }
   | { name: "account" }

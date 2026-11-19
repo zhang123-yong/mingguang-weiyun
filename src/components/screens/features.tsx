@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Gift, Leaf, Mic, Plus, Search, X, Zap } from
 import { Group, Page, PrimaryButton, TextInput } from "@/components/chrome";
 import { SwirlMark } from "@/components/screens/scenes";
 import { useApp } from "@/lib/app-state";
+import { lockPanelOf } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 import { recognizeMeal, replyTo, translateText } from "@/lib/tuya";
 
@@ -20,6 +21,8 @@ const session = {
   strategies: [] as Strategy[],
   cloudSync: false,
   translations: [] as TransItem[],
+  alarmDot: true,
+  cloudPlan: "",
 };
 
 export const AGENTS = [
@@ -1188,6 +1191,394 @@ export function CastScreen() {
         </div>
       ) : null}
     </Page>
+  );
+}
+
+const ALARM_PLANS = [
+  { name: "短信200次 + 电话100通", price: "18.99", days: "有效270天", quota: 300 },
+  { name: "电话500通", price: "39.99", days: "有效365天", quota: 500 },
+  { name: "电话100通", price: "16.9", days: "有效180天", quota: 100 },
+  { name: "短信500次", price: "12.99", days: "有效180天", quota: 500 },
+  { name: "短信1000次 + 电话200通", price: "49.99", days: "有效365天", quota: 1200 },
+];
+
+export function AlarmNoticeScreen() {
+  const { data, patchDevice } = useApp();
+  const { pop, push, notify } = useNav();
+  const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
+  const lock = data.devices.find((device) => device.homeId === home?.id && device.kind === "lock");
+  const [more, setMore] = useState(false);
+  const [all, setAll] = useState(false);
+  const [benefit, setBenefit] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [dot, setDot] = useState(session.alarmDot);
+  const panel = lock ? lockPanelOf(lock.lock) : null;
+  const plans = all ? ALARM_PLANS : ALARM_PLANS.slice(0, 3);
+
+  function buy(plan: (typeof ALARM_PLANS)[number]) {
+    if (lock && panel) {
+      patchDevice(lock.id, { lock: { ...panel, smsQuota: panel.smsQuota + plan.quota } });
+    }
+    notify(`已记下「${plan.name}」，演示不会扣费`);
+  }
+
+  function toggleRemind(key: "center" | "sms" | "call") {
+    if (!lock || !panel) {
+      notify("当前家庭还没有门锁");
+      return;
+    }
+    const next = !panel.remind[key];
+    if (next && (key === "sms" || key === "call") && !/^1\d{10}$/.test(panel.boundPhone)) {
+      notify("请先在门锁设置里验证手机号");
+      return;
+    }
+    patchDevice(lock.id, { lock: { ...panel, remind: { ...panel.remind, [key]: next } } });
+  }
+
+  return (
+    <div className="relative flex h-full flex-col bg-[#F6F7FB] text-[#222]">
+      <header className="flex items-center justify-between px-4 pt-4">
+        <h1 className="text-[28px] font-bold">告警通知</h1>
+        <span className="flex h-9 items-center rounded-full border border-[#E8E8E8] bg-white pl-2">
+          <button type="button" aria-label="更多" onClick={() => setMore((open) => !open)} className="px-1 text-[16px] tracking-widest">···</button>
+          <span className="mx-1 h-4 w-px bg-[#E6E6E6]" />
+          <button type="button" aria-label="关闭" onClick={pop} className="grid size-8 place-items-center"><X className="size-4" /></button>
+        </span>
+      </header>
+      {more ? (
+        <div className="absolute right-4 top-16 z-30 w-32 overflow-hidden rounded-2xl bg-white py-1 shadow-xl">
+          <button type="button" className="block w-full px-4 py-3 text-left text-[14px]" onClick={() => { setMore(false); push({ name: "feedback" }); }}>去反馈</button>
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+        <section className="mt-4 rounded-[24px] bg-gradient-to-b from-[#5B74FF] to-[#6A45D6] px-3 pb-3 pt-4 text-white">
+          <p className="px-2 text-[18px] font-semibold">重要通知，多一道提醒</p>
+          <p className="mt-1 px-2 text-[12px] text-white/80">开通短信、电话等提醒方式，不再错过重要通知</p>
+          <button type="button" onClick={() => setBenefit(true)} className="mx-2 mt-3 h-7 rounded-full bg-white/20 px-3 text-[12px]">了解权益</button>
+          <div className="mt-3 flex flex-col gap-2.5">
+            {plans.map((plan) => (
+              <button key={plan.name} type="button" onClick={() => buy(plan)} className="rounded-2xl bg-white px-4 py-3 text-left text-[#222]">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-[16px] font-medium">{plan.name}</span>
+                  <span className="shrink-0 text-[18px] font-semibold">CNY{plan.price}</span>
+                </span>
+                <span className="mt-2 flex items-center gap-2 text-[12px] text-[#8A9098]">
+                  <span className="rounded bg-[#E8F8EF] px-1.5 py-0.5 text-[#3CB371]">一次性</span>
+                  {plan.days}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => setAll((open) => !open)} className="mt-3 block w-full text-center text-[13px] text-white/90">{all ? "收起套餐" : "查看全部套餐"}</button>
+        </section>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => { session.alarmDot = false; setDot(false); setSettings(true); }}
+            className="flex h-16 items-center justify-between rounded-2xl bg-white px-4 text-[15px]"
+          >
+            服务设置
+            <span className="flex items-center gap-1 text-[#C8C8C8]">
+              {dot ? <i className="size-2 rounded-full bg-[#FF3B30]" /> : null}
+              <ChevronRight className="size-4" />
+            </span>
+          </button>
+          <button type="button" onClick={() => push({ name: "orders" })} className="flex h-16 items-center justify-between rounded-2xl bg-white px-4 text-[15px]">
+            我的订单<ChevronRight className="size-4 text-[#C8C8C8]" />
+          </button>
+        </div>
+        <div className="mt-5 flex items-center justify-between px-1">
+          <h2 className="text-[16px] font-semibold">设备告警</h2>
+          <button type="button" onClick={() => push({ name: "messages" })} className="flex items-center text-[13px] text-[#8A9098]">通知记录<ChevronRight className="size-4" /></button>
+        </div>
+        <button
+          type="button"
+          onClick={() => (lock ? push({ name: "device", id: lock.id }) : notify("当前家庭还没有门锁"))}
+          className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left"
+        >
+          <DoorLockArt />
+          <span className="min-w-0 flex-1 text-[16px]">{lock?.name || "可视智能门锁"}</span>
+          <span className={`text-[13px] ${lock?.online ? "text-[#3DDC84]" : "text-[#C9A24A]"}`}>· {lock?.online ? "在线" : "离线"}</span>
+        </button>
+      </div>
+      {benefit ? (
+        <div className="absolute inset-0 z-20 flex items-end bg-black/35" onClick={() => setBenefit(false)}>
+          <div className="w-full rounded-t-3xl bg-white px-5 py-5" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-[17px] font-medium">了解权益</h2>
+            <p className="mt-3 text-[14px] leading-7 text-[#666]">门锁告警可以同时发到消息中心、短信和电话。短信和电话按套餐次数扣减，演示不会发送真实短信，也不会扣费。</p>
+            <button type="button" onClick={() => setBenefit(false)} className="mt-4 h-11 w-full rounded-full bg-[#222] text-white">知道了</button>
+          </div>
+        </div>
+      ) : null}
+      {settings ? (
+        <div className="absolute inset-0 z-20 flex items-end bg-black/35" onClick={() => setSettings(false)}>
+          <div className="w-full rounded-t-3xl bg-white px-5 py-5" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-[17px] font-medium">服务设置</h2>
+            {([
+              ["center", "消息中心"],
+              ["sms", "短信提醒"],
+              ["call", "电话提醒"],
+            ] as const).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => toggleRemind(key)} className="flex w-full items-center justify-between border-b border-[#F3F4F6] py-4 text-[16px]">
+                {label}
+                <i className={`h-6 w-11 rounded-full ${panel?.remind[key] ? "bg-[#3A8DFF]" : "bg-[#E6E6E6]"}`} />
+              </button>
+            ))}
+            <button type="button" onClick={() => setSettings(false)} className="mt-4 h-11 w-full rounded-full bg-[#F4F6FB]">完成</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const CLOUD_PLANS = [
+  { id: "y30", name: "【特惠】30天滚动视频云存储（年套餐）", detail: "全年安防滴水不漏", price: "139.9", unit: "/365天", was: "¥223.90/365天", off: "降 37%" },
+  { id: "y7", name: "【特惠】7天滚动视频云存储（年套餐）", detail: "全年假日安防无忧", price: "59.9", unit: "/365天", was: "¥95.90/365天", off: "降 37%" },
+  { id: "m7", name: "7天滚动视频云存储（月套餐）", detail: "灵活体验休假安心", price: "5.9", unit: "/30天", was: "¥7.90/30天", off: "降 25%" },
+  { id: "m30", name: "30天滚动视频云存储（月套餐）", detail: "超长周期安防加码", price: "13.9", unit: "/30天", was: "¥20.90/30天", off: "降 33%" },
+  { id: "life30", name: "【钜惠】30天滚动视频云存储（终身）", detail: "一次购买 终身使用", price: "699", unit: "", was: "¥1999", off: "降 65%" },
+  { id: "life7", name: "【钜惠】7天滚动视频云存储（终身）", detail: "一次购买 终身使用", price: "399", unit: "", was: "¥999", off: "降 60%" },
+];
+
+const AI_PLANS = [
+  { id: "ai-m", name: "AI智能总结（月套餐）", detail: "巡检哨兵，异常片段自动整理", price: "9.9", unit: "/30天", was: "¥12.90/30天", off: "降 23%" },
+  { id: "ai-y", name: "AI智能守护（年套餐）", detail: "陌生人、逗留和包裹提醒", price: "79", unit: "/365天", was: "¥128/365天", off: "降 38%" },
+];
+
+export function LockServiceScreen() {
+  const { data } = useApp();
+  const { pop, push, notify } = useNav();
+  const home = data.homes.find((item) => item.id === data.currentHomeId) ?? data.homes[0];
+  const lock = data.devices.find((device) => device.homeId === home?.id && device.kind === "lock");
+  const [tab, setTab] = useState<"ai" | "cloud">("cloud");
+  const [picked, setPicked] = useState(CLOUD_PLANS[0].id);
+  const [agreed, setAgreed] = useState(false);
+  const [more, setMore] = useState(false);
+  const [doc, setDoc] = useState<"服务协议" | "自动续费服务协议" | null>(null);
+  const [mine, setMine] = useState(false);
+  const [redeem, setRedeem] = useState(false);
+  const [code, setCode] = useState("");
+  const [owned, setOwned] = useState(session.cloudPlan);
+  const plans = tab === "cloud" ? CLOUD_PLANS : AI_PLANS;
+  const current = plans.find((item) => item.id === picked) ?? plans[0];
+
+  function openDevice() {
+    if (lock) push({ name: "device", id: lock.id });
+    else notify("当前家庭还没有门锁");
+  }
+
+  function openNow() {
+    if (!agreed) {
+      notify("请先阅读并同意协议");
+      return;
+    }
+    session.cloudPlan = current.name;
+    setOwned(current.name);
+    notify(`已记下「${current.name}」，演示不会扣费`);
+  }
+
+  return (
+    <div className="relative flex h-full flex-col bg-[#24182F] text-[#222]">
+      <div className="relative px-2 pb-2 pt-2 text-white">
+        <LockHero />
+        <header className="relative z-10 grid h-11 grid-cols-[40px_1fr_auto] items-center">
+          <button type="button" aria-label="返回" onClick={pop} className="grid size-10 place-items-center text-[28px]">‹</button>
+          <h1 className="text-center text-[17px] font-medium">精选服务</h1>
+          <span className="mr-2 flex h-8 items-center rounded-full border border-white/30 bg-white/10 pl-2">
+            <button type="button" aria-label="更多" onClick={() => setMore((open) => !open)} className="px-1 text-[16px] tracking-widest">···</button>
+            <span className="mx-1 h-4 w-px bg-white/30" />
+            <button type="button" aria-label="关闭" onClick={pop} className="grid size-8 place-items-center"><X className="size-4" /></button>
+          </span>
+        </header>
+        <button type="button" onClick={openDevice} className="relative flex items-center gap-3 px-3 pb-6 pt-2 text-left">
+          <DoorLockArt light />
+          <span>
+            <span className="block text-[12px] text-white/70">当前设备</span>
+            <span className="mt-0.5 block text-[16px]">{lock?.name || "可视智能门锁"} ›</span>
+          </span>
+        </button>
+      </div>
+      {more ? (
+        <div className="absolute right-4 top-14 z-30 w-32 overflow-hidden rounded-2xl bg-white py-1 shadow-xl">
+          <button type="button" className="block w-full px-4 py-3 text-left text-[14px]" onClick={() => { setMore(false); push({ name: "feedback" }); }}>去反馈</button>
+        </div>
+      ) : null}
+      <div className="flex items-end px-3">
+        {([
+          ["ai", "AI"],
+          ["cloud", "云存储"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => { setTab(id); setPicked(id === "cloud" ? CLOUD_PLANS[0].id : AI_PLANS[0].id); }}
+            className={`h-11 flex-1 text-[16px] ${tab === id ? "rounded-t-2xl bg-[#F5F6FA] font-medium text-[#222]" : "text-white/75"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[#F5F6FA] px-4 pb-4">
+        <section className="rounded-2xl bg-white px-3 py-4">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[15px]">服务权益</span>
+            <button type="button" className="text-[13px] text-[#8A9098]" onClick={() => notify(tab === "cloud" ? "可回看录像，视频加密保存在云端，并支持多个终端查看。" : "AI 会整理异常片段，并在有人逗留或包裹出现时提醒。")}>查看</button>
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-2 text-center text-[11px] leading-4 text-[#666]">
+            {(tab === "cloud" ? CLOUD_BENEFITS : AI_BENEFITS).map((item) => (
+              <span key={item.label}><i className="mx-auto mb-2 grid size-11 place-items-center rounded-full bg-[#F4F1EC] text-[#8C7B6B]">{item.icon}</i>{item.label}</span>
+            ))}
+          </div>
+        </section>
+        <h2 className="px-1 pb-2 pt-4 text-[16px] font-semibold">套餐选择</h2>
+        <div className="flex flex-col gap-3 pt-1">
+          {plans.map((plan) => (
+            <button
+              key={plan.id}
+              type="button"
+              onClick={() => setPicked(plan.id)}
+              className={`relative rounded-2xl bg-white px-4 py-3 text-left ${picked === plan.id ? "border-2 border-[#C4A574]" : "border border-[#E7DCC8]"}`}
+            >
+              <span className="absolute -top-2 right-3 rounded-full bg-[#C4A574] px-2 py-0.5 text-[11px] text-white">{plan.off}</span>
+              <span className="flex items-center justify-between gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] leading-5">{plan.name}</span>
+                  <span className="mt-1 block text-[12px] text-[#A0A4AA]">{plan.detail}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-[20px] font-semibold leading-none">¥{plan.price}<span className="text-[12px] font-normal">{plan.unit}</span></span>
+                  <span className="mt-1 block text-[12px] text-[#C8C8C8] line-through">{plan.was}</span>
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+        {tab === "cloud" ? (
+          <div className="pb-2 pt-6">
+            <p className="text-center text-[13px] text-[#B0B4BA]">· 更多功能 ·</p>
+            <div className="mt-4 grid grid-cols-4 text-center text-[12px] text-[#666]">
+              {[
+                ["我的服务", "shield", () => setMine(true)],
+                ["我的订单", "list", () => push({ name: "orders" })],
+                ["券码兑换", "ticket", () => setRedeem(true)],
+                ["官方礼物", "gift", () => notify("暂无可领取的礼物")],
+              ].map(([label, icon, go]) => (
+                <button key={label} type="button" onClick={go}>
+                  <i className="mx-auto mb-2 grid size-12 place-items-center rounded-full bg-[#8C7B6B] text-white"><BenefitGlyph name={icon} /></i>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <div className="bg-[#F5F6FA] px-4 pb-4 pt-2">
+        <button type="button" onClick={openNow} className="h-12 w-full rounded-full bg-[#C8BBA8] text-[16px] text-white">立即开通</button>
+        <label className="mt-3 flex items-start gap-2 text-[12px] leading-5 text-[#8A9098]">
+          <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-1" />
+          <span>
+            购买前请仔细阅读
+            <button type="button" className="text-[#3A8DFF]" onClick={(event) => { event.preventDefault(); setDoc("服务协议"); }}>《服务协议》</button>
+            、
+            <button type="button" className="text-[#3A8DFF]" onClick={(event) => { event.preventDefault(); setDoc("自动续费服务协议"); }}>《自动续费服务协议》</button>
+            ，确认付款后即视为同意本协议
+          </span>
+        </label>
+      </div>
+      {doc ? (
+        <div className="absolute inset-0 z-30 flex flex-col bg-white">
+          <header className="grid h-12 grid-cols-[40px_1fr_40px] items-center px-2">
+            <button type="button" aria-label="返回协议" onClick={() => setDoc(null)} className="grid size-10 place-items-center text-[28px]">‹</button>
+            <h2 className="text-center text-[17px]">{doc}</h2>
+            <span />
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[14px] leading-7 text-[#444]">
+            <p>这是演示协议，不会产生真实扣款。开通后权益只记在本机，刷新页面后需要重新选择。</p>
+            <p className="mt-3">{doc === "服务协议" ? "云存储和 AI 服务按所选套餐的天数提供回看。套餐到期后不再新增录像，已有录像会按套餐周期滚动删除。" : "月套餐和年套餐在演示里不会自动续费，也不会向支付渠道发起扣款。关闭页面即停止。"}</p>
+          </div>
+        </div>
+      ) : null}
+      {mine ? (
+        <div className="absolute inset-0 z-20 flex items-end bg-black/35" onClick={() => setMine(false)}>
+          <div className="w-full rounded-t-3xl bg-white px-5 py-5" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-[17px] font-medium">我的服务</h2>
+            <p className="mt-3 text-[15px]">{owned || "当前未开通云存储或 AI 服务"}</p>
+            <button type="button" onClick={() => setMine(false)} className="mt-4 h-11 w-full rounded-full bg-[#F4F6FB]">完成</button>
+          </div>
+        </div>
+      ) : null}
+      {redeem ? (
+        <div className="absolute inset-0 z-20 flex items-end bg-black/35" onClick={() => setRedeem(false)}>
+          <div className="w-full rounded-t-3xl bg-white px-5 py-5" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-[17px] font-medium">券码兑换</h2>
+            <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="请输入兑换码" className="mt-3 h-11 w-full rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+            <button type="button" className="mt-3 h-11 w-full rounded-full bg-[#C8BBA8] text-white" onClick={() => {
+              if (code.trim().toUpperCase() !== "MINGGUANG") { notify("兑换码无效，可试 MINGGUANG"); return; }
+              session.cloudPlan = "兑换的 7 天云存储";
+              setOwned("兑换的 7 天云存储");
+              setCode("");
+              setRedeem(false);
+              notify("兑换成功，权益只记在本机");
+            }}>立即兑换</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DoorLockArt({ light = false }: { light?: boolean }) {
+  const ink = light ? "#fff" : "#9AA3B2";
+  return (
+    <svg viewBox="0 0 48 48" className="size-12" aria-hidden>
+      <rect x="16" y="6" width="10" height="28" rx="2" fill={light ? "rgba(255,255,255,0.16)" : "#F4F6F8"} stroke={ink} />
+      <rect x="24" y="16" width="14" height="6" rx="1" fill={ink} />
+      <circle cx="21" cy="24" r="1.4" fill={ink} />
+    </svg>
+  );
+}
+
+const CLOUD_BENEFITS = [
+  { label: "查看录像", icon: <BenefitGlyph name="play" /> },
+  { label: "安全存储", icon: <BenefitGlyph name="box" /> },
+  { label: "金融级隐私加密", icon: <BenefitGlyph name="lock" /> },
+  { label: "多终端同时共享", icon: <BenefitGlyph name="share" /> },
+];
+
+const AI_BENEFITS = [
+  { label: "智能总结", icon: <BenefitGlyph name="play" /> },
+  { label: "巡检哨兵", icon: <BenefitGlyph name="shield" /> },
+  { label: "异常识别", icon: <BenefitGlyph name="lock" /> },
+  { label: "消息提醒", icon: <BenefitGlyph name="list" /> },
+];
+
+function BenefitGlyph({ name }: { name: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
+      {name === "play" ? <path d="M8 6v12l10-6Z" fill="currentColor" /> : null}
+      {name === "box" ? <path d="M4 8h16v10H4zm2 0 6-4 6 4" fill="none" stroke="currentColor" strokeWidth="1.6" /> : null}
+      {name === "lock" ? <path d="M8 11V8a4 4 0 0 1 8 0v3M7 11h10v8H7z" fill="none" stroke="currentColor" strokeWidth="1.6" /> : null}
+      {name === "share" ? <path d="M7 14v4h10v-4M12 4v10m0-10 3 3m-3-3-3 3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /> : null}
+      {name === "shield" ? <path d="M12 3 5 6v6c0 4 3 6.5 7 8 4-1.5 7-4 7-8V6z" fill="none" stroke="currentColor" strokeWidth="1.6" /> : null}
+      {name === "list" ? <path d="M6 7h12M6 12h12M6 17h8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /> : null}
+      {name === "ticket" ? <path d="M4 8h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z" fill="none" stroke="currentColor" strokeWidth="1.6" /> : null}
+      {name === "gift" ? <path d="M5 11h14v8H5zM4 8h16v3H4zM12 8v11M12 8c-2 0-3-2-2-3s3 1 2 3 2 3 3 2-1-3-2-2" fill="none" stroke="currentColor" strokeWidth="1.6" /> : null}
+    </svg>
+  );
+}
+
+function LockHero() {
+  return (
+    <svg viewBox="0 0 180 140" className="pointer-events-none absolute right-2 top-12 h-28 w-36" aria-hidden>
+      <rect x="78" y="28" width="46" height="86" rx="6" fill="#3A2C4A" stroke="#6A5878" />
+      <circle cx="101" cy="70" r="6" fill="none" stroke="#C4B7A6" strokeWidth="2" />
+      <path d="M101 76v8" stroke="#C4B7A6" strokeWidth="2" />
+      <circle cx="132" cy="42" r="18" fill="#4A3A62" />
+      <path d="M132 34v10m-4-6 4 4 4-6" fill="none" stroke="#E7D7FF" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="40" cy="30" r="1.2" fill="white" opacity="0.5" />
+      <circle cx="58" cy="18" r="1" fill="white" opacity="0.4" />
+    </svg>
   );
 }
 

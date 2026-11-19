@@ -49,6 +49,8 @@ import {
   EnvironmentScreen,
   ExploreScreen,
   NetworkScreen,
+  AlarmNoticeScreen,
+  LockServiceScreen,
   NotesScreen,
   OrdersScreen,
   PlusScreen,
@@ -235,6 +237,10 @@ function Screen({
       return <MembersScreen homeId={route.homeId} />;
     case "messages":
       return <MessagesScreen />;
+    case "alarm":
+      return <AlarmNoticeScreen />;
+    case "lock-service":
+      return <LockServiceScreen />;
     case "message":
       return <MessageScreen id={route.id} />;
     case "settings":
