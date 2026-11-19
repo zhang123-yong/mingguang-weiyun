@@ -166,3 +166,12 @@
   transform-origin: center;
   animation: ring-spin 1s linear infinite;
 }
+
+@keyframes live-pan {
+  0%, 100% { transform: translateX(-5%); }
+  50% { transform: translateX(5%); }
+}
+
+.live-pan {
+  animation: live-pan 6s ease-in-out infinite;
+}

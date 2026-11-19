@@ -22,7 +22,7 @@ export type DeviceLog = { id: string; text: string; time: string };
 export type LockUser = { id: string; name: string; method: string };
 export type TempCode = { id: string; code: string; expire: string };
 export type LockLinkItem = { id: string; name: string; desc: string; on: boolean };
-export type LockClip = { id: string; time: string };
+export type LockClip = { id: string; time: string; kind?: "shot" | "video" };
 export type LockRemind = { center: boolean; sms: boolean; call: boolean };
 export type LockPanelState = {
   remoteUnlock: boolean;

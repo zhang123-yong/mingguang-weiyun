@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Grid3x3,
+  Images,
   Info,
   List,
   Lock,
@@ -15,6 +16,8 @@ import {
   ToggleRight,
   UserRound,
   Video,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
 import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
@@ -109,7 +112,6 @@ export function LockPanel({ device }: { device: Device }) {
   const [phone, setPhone] = useState(panel.boundPhone);
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [talkOk, setTalkOk] = useState(false);
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -127,6 +129,11 @@ export function LockPanel({ device }: { device: Device }) {
   const [wifi, setWifi] = useState<WifiReading | null>(null);
   const [wifiOpen, setWifiOpen] = useState(false);
   const [wifiChecking, setWifiChecking] = useState(false);
+  const [speed, setSpeed] = useState<1 | 2 | 4>(1);
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const [recordFrom, setRecordFrom] = useState<number | null>(null);
+  const [recordNow, setRecordNow] = useState(0);
+  const [shutter, setShutter] = useState(false);
   const wifiBox = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -150,6 +157,12 @@ export function LockPanel({ device }: { device: Device }) {
       info?.removeEventListener?.("change", refresh);
     };
   }, []);
+
+  useEffect(() => {
+    if (recordFrom === null) return;
+    const timer = window.setInterval(() => setRecordNow(Date.now()), 200);
+    return () => window.clearInterval(timer);
+  }, [recordFrom]);
 
   useEffect(() => {
     if (!wifiOpen) return;
@@ -177,7 +190,6 @@ export function LockPanel({ device }: { device: Device }) {
   function open(next: Page) {
     if (next.id === "live") {
       setConnecting(true);
-      setTalkOk(false);
       window.setTimeout(() => setConnecting(false), 1100);
     }
     setDialog(null);
@@ -185,9 +197,46 @@ export function LockPanel({ device }: { device: Device }) {
   }
 
   function back() {
+    if (page.id === "live" && recordFrom !== null && (Date.now() - recordFrom) / 1000 >= 1) {
+      saveClip("video");
+    } else if (recordFrom !== null) {
+      setRecordFrom(null);
+      save({ ...panel, recording: false });
+    }
     setDialog(null);
     if (stack.length > 1) setStack((current) => current.slice(0, -1));
     else pop();
+  }
+
+  function saveClip(kind: "shot" | "video") {
+    const album = [{ id: rid(), time: nowLabel(), kind }, ...panel.album].slice(0, 12);
+    setRecordFrom(null);
+    save({ ...panel, recording: false, album }, kind === "shot" ? "已截图" : "录像已保存至本地相册");
+    notify(kind === "shot" ? "已保存到相册" : "录像已保存至本地相册");
+  }
+
+  function shoot() {
+    setShutter(true);
+    window.setTimeout(() => setShutter(false), 160);
+    const album = [{ id: rid(), time: nowLabel(), kind: "shot" as const }, ...panel.album].slice(0, 12);
+    save({ ...panel, album, recording: recordFrom !== null }, "已截图");
+    notify("已保存到相册");
+  }
+
+  function toggleRecord() {
+    if (recordFrom === null) {
+      setRecordFrom(Date.now());
+      setRecordNow(Date.now());
+      save({ ...panel, recording: true });
+      notify("开始录像");
+      return;
+    }
+    const seconds = (Date.now() - recordFrom) / 1000;
+    if (seconds < 1) {
+      notify("至少录制 1 秒后才能停止");
+      return;
+    }
+    saveClip("video");
   }
 
   function holdProps(hint: string, fire: () => void) {
@@ -445,44 +494,100 @@ export function LockPanel({ device }: { device: Device }) {
 
         {page.id === "live" ? (
           <section className="flex min-h-full flex-col bg-black text-white">
-            <div className="flex h-12 items-center justify-between px-2">
+            <div className="flex h-12 items-center px-2">
               <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
-              <button type="button" className="px-3 text-[15px]" onClick={() => {
-                const order = ["高清", "标清", "超清"];
-                const next = order[(order.indexOf(panel.clarity) + 1) % order.length] ?? "高清";
-                save({ ...panel, clarity: next });
-              }}>{panel.clarity}</button>
+              <h1 className="flex-1 text-center text-[16px] font-medium">视频监控</h1>
+              <span className="w-10" />
             </div>
-            <div className="relative flex flex-1 items-center justify-center bg-[#1c2430]">
-              <div className="h-40 w-56 rounded-2xl bg-[#2c3848]" />
-              {talkOk ? <div className="absolute top-6 rounded-full bg-black/60 px-4 py-1 text-[13px]">已成功</div> : null}
+            <div className="relative min-h-0 flex-1 overflow-hidden bg-[#12181f]">
+              <div className={`absolute inset-0 ${panel.clarity === "标清" ? "blur-[1.4px]" : ""}`}>
+                <div className="live-pan absolute inset-y-0 -left-[8%] w-[116%] bg-[radial-gradient(circle_at_50%_38%,#60788c,transparent_42%),linear-gradient(#314252,#141a20)]" style={{ animationDuration: `${6 / speed}s` }} />
+                <div className="absolute inset-x-[16%] top-[14%] bottom-[16%] rounded-[2px] border-[12px] border-[#16191d] bg-[#2a3846]/40" />
+              </div>
+              {recordFrom !== null ? (
+                <div className="absolute top-4 left-4 flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-[13px]">
+                  <i className="size-2 rounded-full bg-[#FF3B30]" />
+                  {recordClock(recordFrom, recordNow)}
+                </div>
+              ) : null}
+              {panel.muted ? <div className="absolute top-4 right-4 rounded-full bg-black/55 px-3 py-1 text-[12px]">静音</div> : null}
+              {shutter ? <div className="absolute inset-0 bg-white/75" /> : null}
               {connecting ? <div className="absolute inset-0 grid place-items-center bg-black/55 text-[15px]">正在构建加密通道</div> : null}
             </div>
-            <div className="grid grid-cols-5 gap-1 px-2 py-4 text-center text-[11px]">
-              <button type="button" onClick={() => { save({ ...panel, muted: !panel.muted }); notify(panel.muted ? "已恢复原声" : "已静音"); }}>
-                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">{panel.muted ? "静" : "声"}</i>
-                {panel.muted ? "已静音" : "原声"}
+            <div className="grid grid-cols-6 items-end gap-1 px-2 pt-3 pb-5 text-center text-[11px]">
+              {(["高清", "标清"] as const).map((level) => {
+                const active = (panel.clarity === "标清" ? "标清" : "高清") === level;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    aria-label={level}
+                    aria-pressed={active}
+                    onClick={() => save({ ...panel, clarity: level, recording: recordFrom !== null })}
+                    className="flex w-full flex-col items-center gap-1"
+                  >
+                    <span className={`grid h-9 min-w-11 place-items-center rounded-lg px-1 text-[13px] ${active ? "bg-white font-medium text-[#16181c]" : "bg-white/15 text-white/75"}`}>{level}</span>
+                    <span className="text-[11px] text-transparent">清晰</span>
+                  </button>
+                );
+              })}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="变速"
+                  aria-expanded={speedOpen}
+                  onClick={() => setSpeedOpen((open) => !open)}
+                  className="flex w-full flex-col items-center gap-1"
+                >
+                  <i className="grid size-9 place-items-center rounded-full bg-white/15 text-[13px] font-medium not-italic">{speed}×</i>
+                  变速
+                </button>
+                {speedOpen ? (
+                  <div className="absolute bottom-14 left-1/2 z-10 w-16 -translate-x-1/2 overflow-hidden rounded-xl bg-white text-[#222] shadow-lg">
+                    {([1, 2, 4] as const).map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        aria-label={`${rate}倍速`}
+                        onClick={() => {
+                          setSpeed(rate);
+                          setSpeedOpen(false);
+                          notify(`已切换 ${rate}×`);
+                        }}
+                        className={`block h-9 w-full text-[13px] ${speed === rate ? "bg-[#E8F8F3] font-medium text-[#12987a]" : ""}`}
+                      >
+                        {rate}×
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                aria-label="静音"
+                aria-pressed={panel.muted}
+                onClick={() => {
+                  save({ ...panel, muted: !panel.muted, recording: recordFrom !== null });
+                  notify(panel.muted ? "已打开声音" : "已静音");
+                }}
+                className="flex w-full flex-col items-center gap-1"
+              >
+                <i className={`grid size-9 place-items-center rounded-full not-italic ${panel.muted ? "bg-[#FF3B30] text-white" : "bg-white/15"}`}>
+                  {panel.muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+                </i>
+                静音
               </button>
-              <button type="button" onClick={() => {
-                const recording = !panel.recording;
-                const album = recording ? panel.album : [{ id: rid(), time: nowLabel() }, ...panel.album].slice(0, 8);
-                save({ ...panel, recording, album }, recording ? undefined : "录像已保存至本地相册");
-                notify(recording ? "开始录像" : "录像已保存至本地相册");
-              }}>
-                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">录</i>
-                {panel.recording ? "停止" : "录像"}
-              </button>
-              <button type="button" {...holdProps("请长按对讲", () => { setTalkOk(true); pushLog(device.id, "对讲成功"); notify("已成功"); })}>
-                <i className="mx-auto grid size-10 place-items-center rounded-full bg-[#12c4a0] not-italic">话</i>
-                长按对讲
-              </button>
-              <button type="button" onClick={() => open({ id: "album" })}>
-                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">册</i>
+              <button type="button" aria-label="截图" onClick={shoot} className="flex w-full flex-col items-center gap-1">
+                <i className="grid size-9 place-items-center rounded-full bg-white/15 not-italic">
+                  <Images className="size-4" />
+                </i>
                 相册
               </button>
-              <button type="button" {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}>
-                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">锁</i>
-                {unlocked ? "已开锁" : "长按开锁"}
+              <button type="button" aria-label="录像" aria-pressed={recordFrom !== null} onClick={toggleRecord} className="flex w-full flex-col items-center gap-1">
+                <i className={`grid size-9 place-items-center rounded-full not-italic ${recordFrom !== null ? "bg-[#FF3B30] text-white" : "bg-white/15"}`}>
+                  <Video className="size-4" />
+                </i>
+                {recordFrom !== null ? recordClock(recordFrom, recordNow) : "录像"}
               </button>
             </div>
           </section>
@@ -964,6 +1069,13 @@ export function LockPanel({ device }: { device: Device }) {
       ) : null}
     </div>
   );
+}
+
+function recordClock(from: number, now: number) {
+  const total = Math.max(0, Math.floor((now - from) / 1000));
+  const minutes = String(Math.floor(total / 60)).padStart(2, "0");
+  const seconds = String(total % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
 function batteryFill(percent: number) {

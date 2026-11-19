@@ -95,14 +95,16 @@ function monthCells(y: number, m: number) {
   return cells;
 }
 
-function ClipFace() {
+function ClipFace({ still = false }: { still?: boolean }) {
   return (
     <span className="relative block aspect-[4/3] overflow-hidden rounded-lg bg-[#D7DDE3]">
       <span className="absolute inset-x-4 top-4 h-8 rounded bg-white/70" />
       <span className="absolute bottom-3 left-3 right-3 h-10 rounded bg-[#C5CED6]" />
-      <span className="absolute left-1/2 top-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white">
-        <Play className="size-4 fill-white" />
-      </span>
+      {still ? null : (
+        <span className="absolute left-1/2 top-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white">
+          <Play className="size-4 fill-white" />
+        </span>
+      )}
     </span>
   );
 }
@@ -137,7 +139,7 @@ export function LockAlbum({
     });
     const fromClips = panel.album.map((clip) => ({
       id: clip.id,
-      title: "本地录像",
+      title: clip.kind === "shot" ? "截图" : "本地录像",
       stamp: parseStamp(clip.time),
       event: "其他" as const,
       bucket: "clip" as const,
@@ -234,7 +236,7 @@ export function LockAlbum({
               ) : albumRows.map((row) => (
                 <div key={row.id} className="text-left">
                   <button type="button" onClick={noVideo} className="block w-full text-left">
-                    <ClipFace />
+                    <ClipFace still={row.title === "截图"} />
                     <span className="mt-2 block text-[12px] text-[#666]">{row.stamp.key.slice(5)} {row.stamp.hm}</span>
                     <span className="mt-1 block text-[15px]">{messageOf(row)}</span>
                   </button>
