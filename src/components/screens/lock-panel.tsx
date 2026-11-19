@@ -2,7 +2,6 @@
 
 import { useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import {
-  BatteryMedium,
   Bell,
   Check,
   ChevronLeft,
@@ -278,7 +277,7 @@ export function LockPanel({ device }: { device: Device }) {
               </span>
             </button>
             <div className="mt-4 flex flex-col items-center text-[#8A8F98]">
-              <BatteryMedium className="size-6 text-[#2BD18A]" />
+              <BatteryGauge percent={device.battery} />
               <p className="mt-1 text-[13px]">电池电量: {device.battery}%</p>
             </div>
             <div
@@ -902,5 +901,37 @@ export function LockPanel({ device }: { device: Device }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function batteryFill(percent: number) {
+  if (percent <= 0) return 0;
+  if (percent <= 20) return 0.25;
+  if (percent <= 50) return 0.5;
+  if (percent <= 75) return 0.75;
+  return 1;
+}
+
+function BatteryGauge({ percent }: { percent: number }) {
+  const level = batteryFill(percent);
+  const color = level === 0 ? "#F04444" : "#2BD18A";
+  const innerWidth = 22.2;
+  return (
+    <svg viewBox="0 0 32 16" className="h-[18px] w-9" aria-hidden>
+      <rect
+        x="1"
+        y="1"
+        width="26"
+        height="14"
+        rx="2.6"
+        fill={level === 1 ? color : "none"}
+        stroke={color}
+        strokeWidth="1.6"
+      />
+      <rect x="28.2" y="4.7" width="2.5" height="6.6" rx="0.9" fill={color} />
+      {level > 0 && level < 1 ? (
+        <rect x="2.6" y="2.6" width={innerWidth * level} height="10.8" rx="1.2" fill={color} />
+      ) : null}
+    </svg>
   );
 }
