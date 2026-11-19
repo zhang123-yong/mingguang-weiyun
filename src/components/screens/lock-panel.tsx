@@ -25,7 +25,13 @@ import { lockPanelOf, nowLabel, productOf, rid, type Device, type LockPanelState
 import { useNav } from "@/lib/nav";
 import { LockAlbum, lockPreviewText } from "@/components/screens/lock-album";
 
-const VOICE_TONES = ["原声", "大叔", "小丑"] as const;
+const VOICE_OPTIONS = [
+  { id: "origin", name: "原声" },
+  { id: "robot", name: "机器人" },
+  { id: "sister", name: "小姐姐" },
+  { id: "brother", name: "小哥哥" },
+  { id: "uncle", name: "大叔" },
+] as const;
 
 const ACCESS_OPTIONS: { id: UnlockAccess; label: string }[] = [
   { id: "admin", label: "仅管理员可以使用" },
@@ -123,7 +129,9 @@ export function LockPanel({ device }: { device: Device }) {
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [talking, setTalking] = useState(false);
-  const [tone, setTone] = useState(0);
+  const [voiceId, setVoiceId] = useState<(typeof VOICE_OPTIONS)[number]["id"]>("origin");
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [bands, setBands] = useState([0.18, 0.18, 0.18, 0.18, 0.18]);
   const [recordFrom, setRecordFrom] = useState<number | null>(null);
   const [recordNow, setRecordNow] = useState(0);
   const [shutter, setShutter] = useState(false);
@@ -179,6 +187,55 @@ export function LockPanel({ device }: { device: Device }) {
   }, [recordFrom]);
 
   useEffect(() => {
+    if (!talking) return;
+    let alive = true;
+    let frame = 0;
+    let context: AudioContext | null = null;
+    let stream: MediaStream | null = null;
+    const idle = () => {
+      if (!alive) return;
+      const time = Date.now() / 220;
+      setBands([0, 1, 2, 3, 4].map((index) => 0.22 + Math.abs(Math.sin(time + index * 0.8)) * 0.28));
+      frame = requestAnimationFrame(idle);
+    };
+    void (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        context = new Ctx();
+        const source = context.createMediaStreamSource(stream);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const slice = Math.max(1, Math.floor(data.length / 5));
+        const listen = () => {
+          if (!alive) return;
+          analyser.getByteFrequencyData(data);
+          setBands([0, 1, 2, 3, 4].map((index) => {
+            let sum = 0;
+            for (let cursor = index * slice; cursor < (index + 1) * slice && cursor < data.length; cursor += 1) sum += data[cursor] ?? 0;
+            const loud = Math.min(1, sum / slice / 36);
+            const flutter = 0.45 + 0.55 * Math.abs(Math.sin(Date.now() / 160 + index * 0.9));
+            return Math.min(1, flutter * (0.35 + loud * 0.85));
+          }));
+          frame = requestAnimationFrame(listen);
+        };
+        listen();
+      } catch {
+        idle();
+      }
+    })();
+    return () => {
+      alive = false;
+      cancelAnimationFrame(frame);
+      stream?.getTracks().forEach((track) => track.stop());
+      void context?.close();
+      setBands([0.18, 0.18, 0.18, 0.18, 0.18]);
+    };
+  }, [talking]);
+
+  useEffect(() => {
     if (page.id !== "live" || connecting) return;
     const tick = () => setStamp(shanghaiClock());
     tick();
@@ -220,6 +277,7 @@ export function LockPanel({ device }: { device: Device }) {
 
   function back() {
     setTalking(false);
+    setVoiceOpen(false);
     if (page.id === "live" && recordFrom !== null && (Date.now() - recordFrom) / 1000 >= 1) saveClip("video");
     else setRecordFrom(null);
     setDialog(null);
@@ -560,22 +618,21 @@ export function LockPanel({ device }: { device: Device }) {
                     })}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  aria-label="原声"
-                  onClick={() => {
-                    const next = (tone + 1) % VOICE_TONES.length;
-                    setTone(next);
-                    notify(`已切换为${VOICE_TONES[next]}`);
-                  }}
-                  className="absolute top-[58%] left-5 z-10 flex flex-col items-center"
-                >
-                  <span className="grid size-12 place-items-center rounded-full bg-white text-[#3A7BFF]">
-                    <VoiceBars />
-                  </span>
-                  <span className="mt-1 text-[12px] drop-shadow">{VOICE_TONES[tone]}</span>
-                </button>
-                {talking ? <div className="absolute top-16 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/55 px-4 py-1 text-[13px]">对讲中</div> : null}
+                {voiceOpen ? <button type="button" aria-label="关闭变声" onClick={() => setVoiceOpen(false)} className="absolute inset-0 z-[5]" /> : null}
+                {voiceOpen ? null : (
+                  <button
+                    type="button"
+                    aria-label="变声"
+                    onClick={() => setVoiceOpen(true)}
+                    className="absolute top-[58%] left-5 z-10 flex flex-col items-center"
+                  >
+                    <span className="grid size-12 place-items-center rounded-full bg-white text-[#3A7BFF]">
+                      <VoiceBars levels={[0.45, 0.8, 1, 0.7]} />
+                    </span>
+                    <span className="mt-1 text-[12px] drop-shadow">{VOICE_OPTIONS.find((item) => item.id === voiceId)?.name}</span>
+                  </button>
+                )}
+                {talking ? <div className="absolute top-14 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-[13px]">正在通话中...</div> : null}
                 {recordFrom !== null ? (
                   <div className="absolute top-16 left-4 z-10 flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-[13px]">
                     <i className="size-2 rounded-full bg-[#FF3B30]" />
@@ -584,6 +641,29 @@ export function LockPanel({ device }: { device: Device }) {
                 ) : null}
                 {shutter ? <div className="absolute inset-0 z-20 bg-white/80" /> : null}
                 <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-7">
+                  {voiceOpen ? (
+                    <div className="flex items-start justify-between px-1">
+                      {VOICE_OPTIONS.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          aria-label={item.name}
+                          aria-pressed={voiceId === item.id}
+                          onClick={() => {
+                            setVoiceId(item.id);
+                            notify(`已切换为${item.name}`);
+                          }}
+                          className="flex w-14 flex-col items-center"
+                        >
+                          <span className={`grid size-12 place-items-center rounded-full bg-white/95 ${voiceId === item.id ? "ring-2 ring-[#3A7BFF]" : ""}`}>
+                            <VoiceFace id={item.id} />
+                          </span>
+                          <span className="mt-1 text-[12px] drop-shadow">{item.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
                   <div className="mb-5 flex items-center justify-between px-8">
                     <button type="button" aria-label="静音" aria-pressed={panel.muted} onClick={() => { save({ ...panel, muted: !panel.muted, recording: recordFrom !== null }); notify(panel.muted ? "已打开声音" : "已静音"); }} className="grid size-10 place-items-center">
                       {panel.muted ? <VolumeX className="size-7" /> : <Volume2 className="size-7" />}
@@ -596,21 +676,12 @@ export function LockPanel({ device }: { device: Device }) {
                     </button>
                   </div>
                   <div className="flex items-start justify-between px-2">
-                    {panel.talkMode === "one" ? (
-                      <button type="button" aria-label="按住对讲" {...holdProps("请按住对讲", () => { pushLog(device.id, "对讲成功"); notify("对讲成功"); }, "talk")} className="flex flex-col items-center">
-                        <span className={`grid size-[72px] place-items-center rounded-full text-[#20C6A4] ${holding && holdTarget.current === "talk" ? "bg-[#20C6A4] text-white" : "bg-white"}`}>
-                          <Mic className="size-8" />
-                        </span>
-                        <span className="mt-2 text-[13px] drop-shadow">按住对讲</span>
-                      </button>
-                    ) : (
-                      <button type="button" aria-label="点击对讲" aria-pressed={talking} onClick={toggleTalk} className="flex flex-col items-center">
-                        <span className={`grid size-[72px] place-items-center rounded-full ${talking ? "bg-[#20C6A4] text-white" : "bg-white text-[#20C6A4]"}`}>
-                          <Mic className="size-8" />
-                        </span>
-                        <span className="mt-2 text-[13px] drop-shadow">{talking ? "对讲中" : "点击对讲"}</span>
-                      </button>
-                    )}
+                    <button type="button" aria-label="点击对讲" aria-pressed={talking} onClick={toggleTalk} className="flex flex-col items-center">
+                      <span className="grid size-[72px] place-items-center rounded-full bg-white text-[#20C6A4]">
+                        {talking ? <VoiceBars levels={bands} /> : <Mic className="size-8" />}
+                      </span>
+                      <span className="mt-2 text-[13px] drop-shadow">{talking ? "对讲中..." : "点击对讲"}</span>
+                    </button>
                     <button
                       type="button"
                       aria-label={unlocked ? "长按上锁" : "长按开锁"}
@@ -631,6 +702,8 @@ export function LockPanel({ device }: { device: Device }) {
                       <span className="mt-2 text-[13px] drop-shadow">{unlocked ? "长按上锁" : "长按开锁"}</span>
                     </button>
                   </div>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -1173,13 +1246,61 @@ export function LockPanel({ device }: { device: Device }) {
   );
 }
 
-function VoiceBars() {
+function VoiceBars({ levels }: { levels: number[] }) {
+  const width = 24;
+  const gap = 2;
+  const bar = (width - gap * (levels.length - 1)) / levels.length;
   return (
-    <svg viewBox="0 0 24 24" className="size-6" aria-hidden>
-      <rect x="3" y="10" width="3" height="8" rx="1" fill="currentColor" />
-      <rect x="8.5" y="6" width="3" height="12" rx="1" fill="currentColor" />
-      <rect x="14" y="8" width="3" height="10" rx="1" fill="currentColor" />
-      <rect x="18" y="11" width="3" height="7" rx="1" fill="currentColor" />
+    <svg viewBox={`0 0 ${width} 24`} className="size-7" aria-hidden>
+      {levels.map((level, index) => {
+        const height = 6 + Math.max(0, Math.min(1, level)) * 16;
+        return <rect key={index} x={index * (bar + gap)} y={24 - height} width={bar} height={height} rx="1.2" fill="currentColor" />;
+      })}
+    </svg>
+  );
+}
+
+function VoiceFace({ id }: { id: (typeof VOICE_OPTIONS)[number]["id"] }) {
+  if (id === "origin") return <span className="text-[#3A7BFF]"><VoiceBars levels={[0.4, 0.85, 1, 0.62]} /></span>;
+  if (id === "robot") {
+    return (
+      <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+        <rect x="8" y="9" width="16" height="14" rx="4" fill="#7D8EA3" />
+        <rect x="12" y="14" width="3" height="3" rx="0.6" fill="#fff" />
+        <rect x="17" y="14" width="3" height="3" rx="0.6" fill="#fff" />
+        <path d="M14 4h4M16 4v5" stroke="#7D8EA3" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (id === "sister") {
+    return (
+      <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+        <circle cx="16" cy="18" r="8" fill="#F3C1B2" />
+        <path d="M8 18c0-7 3-11 8-11s8 4 8 11" fill="#3C2A24" />
+        <circle cx="13" cy="18" r="1" fill="#333" />
+        <circle cx="19" cy="18" r="1" fill="#333" />
+        <path d="M14 21.5c1 .8 3 .8 4 0" fill="none" stroke="#C47A74" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (id === "brother") {
+    return (
+      <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+        <circle cx="16" cy="18" r="8" fill="#F0C2A8" />
+        <path d="M8 16c1-6 4-9 8-9s7 3 8 9c-2-2-4-3-8-3s-6 1-8 3Z" fill="#2C3440" />
+        <circle cx="13" cy="18" r="1" fill="#333" />
+        <circle cx="19" cy="18" r="1" fill="#333" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+      <path d="M8 14h16v3c0 5-3 8-8 8s-8-3-8-8v-3Z" fill="#C9844A" />
+      <circle cx="16" cy="16" r="7" fill="#E7B48A" />
+      <path d="M9 13c1-5 4-8 7-8s6 3 7 8" fill="#6B4A2B" />
+      <circle cx="13.5" cy="16" r="1" fill="#333" />
+      <circle cx="18.5" cy="16" r="1" fill="#333" />
+      <path d="M12 20c1.2 2 6.8 2 8 0" fill="#C9844A" />
     </svg>
   );
 }
