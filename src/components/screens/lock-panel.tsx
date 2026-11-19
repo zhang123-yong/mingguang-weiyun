@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import {
   Bell,
   Check,
@@ -15,7 +15,6 @@ import {
   ToggleRight,
   UserRound,
   Video,
-  Wifi,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
 import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
@@ -125,6 +124,50 @@ export function LockPanel({ device }: { device: Device }) {
   const hold = useRef<number | null>(null);
   const fired = useRef(false);
   const [holding, setHolding] = useState(false);
+  const [wifi, setWifi] = useState<WifiReading | null>(null);
+  const [wifiOpen, setWifiOpen] = useState(false);
+  const [wifiChecking, setWifiChecking] = useState(false);
+  const wifiBox = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    void measureWifi().then((reading) => {
+      if (!ignore) setWifi(reading);
+    });
+    const info = networkInfo();
+    const refresh = () => {
+      void measureWifi().then((reading) => {
+        if (!ignore) setWifi(reading);
+      });
+    };
+    window.addEventListener("online", refresh);
+    window.addEventListener("offline", refresh);
+    info?.addEventListener?.("change", refresh);
+    return () => {
+      ignore = true;
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("offline", refresh);
+      info?.removeEventListener?.("change", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!wifiOpen) return;
+    const close = (event: Event) => {
+      if (!wifiBox.current?.contains(event.target as Node)) setWifiOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [wifiOpen]);
+
+  function inspectWifi() {
+    setWifiOpen((open) => !open);
+    setWifiChecking(true);
+    void measureWifi().then((reading) => {
+      setWifi(reading);
+      setWifiChecking(false);
+    });
+  }
 
   function save(next: LockPanelState, log?: string) {
     patchDevice(device.id, { lock: next });
@@ -240,10 +283,29 @@ export function LockPanel({ device }: { device: Device }) {
                 <Pencil className="size-5" />
               </button>
             </header>
-            <div className="flex justify-center pt-2">
-              <span className="grid size-10 place-items-center rounded-full bg-[#E7F8F2] text-[#20C6A4]">
-                <Wifi className="size-5" />
-              </span>
+            <div ref={wifiBox} className="relative z-10 flex justify-center pt-2">
+              <button
+                type="button"
+                aria-label="查看网速"
+                aria-expanded={wifiOpen}
+                onClick={inspectWifi}
+                className="grid size-10 place-items-center rounded-full bg-[#E7F8F2]"
+              >
+                <WifiMark bars={wifi?.bars ?? 0} />
+              </button>
+              {wifiOpen ? (
+                <div className="absolute top-12 left-1/2 -translate-x-1/2">
+                  <div className="relative min-w-[76px] rounded-[10px] bg-white px-3 py-1.5 text-center shadow-[0_6px_18px_rgba(32,36,40,0.12)]">
+                    <span className="absolute -top-1 left-1/2 size-2.5 -translate-x-1/2 rotate-45 bg-white" />
+                    <p className="relative text-[13px] leading-5 font-medium text-[#333]">
+                      {wifiChecking && !wifi ? "检测中" : wifi && wifi.mbps > 0 ? `${wifi.db}DB` : "无网络"}
+                    </p>
+                    <p className="relative text-[11px] leading-4 text-[#8A8F98]">
+                      {wifiChecking && !wifi ? "正在检查" : wifi && wifi.mbps > 0 ? `${formatMbps(wifi.mbps)} Mbps` : "0 Mbps"}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <button
               type="button"
@@ -932,6 +994,78 @@ function BatteryGauge({ percent }: { percent: number }) {
       {level > 0 && level < 1 ? (
         <rect x="2.6" y="2.6" width={innerWidth * level} height="10.8" rx="1.2" fill={color} />
       ) : null}
+    </svg>
+  );
+}
+
+type WifiReading = { bars: 0 | 1 | 2 | 3 | 4; db: number; mbps: number };
+
+type NetworkInfo = {
+  downlink?: number;
+  effectiveType?: string;
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
+};
+
+function networkInfo() {
+  if (typeof navigator === "undefined") return null;
+  const nav = navigator as Navigator & { connection?: NetworkInfo; mozConnection?: NetworkInfo; webkitConnection?: NetworkInfo };
+  return nav.connection ?? nav.mozConnection ?? nav.webkitConnection ?? null;
+}
+
+function mbpsFromNetwork(info: NetworkInfo | null, online: boolean) {
+  if (!online) return 0;
+  if (!info) return null;
+  if (typeof info.downlink === "number" && info.downlink > 0) return info.downlink;
+  if (info.effectiveType === "4g") return 10;
+  if (info.effectiveType === "3g") return 1.6;
+  if (info.effectiveType === "2g") return 0.3;
+  if (info.effectiveType === "slow-2g") return 0.05;
+  return info.downlink === 0 ? 0 : null;
+}
+
+function wifiFromMbps(mbps: number): WifiReading {
+  const bars = mbps >= 8 ? 4 : mbps >= 4 ? 3 : mbps >= 1 ? 2 : mbps > 0 ? 1 : 0;
+  const db = mbps <= 0 ? -90 : Math.max(-90, Math.min(-30, Math.round(-48 - Math.log10(10 / mbps) * 24)));
+  return { bars, db, mbps: Math.round(mbps * 10) / 10 };
+}
+
+function formatMbps(mbps: number) {
+  return mbps >= 10 ? String(Math.round(mbps)) : String(Math.round(mbps * 10) / 10);
+}
+
+async function probeMbps() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return 0;
+  const started = performance.now();
+  try {
+    const response = await fetch(`${window.location.origin}/?wifi=${Date.now()}`, { cache: "no-store" });
+    await response.arrayBuffer();
+    const ms = Math.max(performance.now() - started, 1);
+    if (ms < 80) return 10;
+    if (ms < 180) return 5;
+    if (ms < 400) return 1.5;
+    if (ms < 800) return 0.4;
+    return 0.1;
+  } catch {
+    return 0;
+  }
+}
+
+async function measureWifi() {
+  const known = mbpsFromNetwork(networkInfo(), typeof navigator === "undefined" ? true : navigator.onLine);
+  return wifiFromMbps(known === null ? await probeMbps() : known);
+}
+
+function WifiMark({ bars }: { bars: number }) {
+  const on = "#20C6A4";
+  const empty = "#C8CDD2";
+  const stroke = (level: number) => (bars === 0 ? empty : bars >= level ? on : "none");
+  return (
+    <svg viewBox="0 0 24 24" className="size-5" data-bars={bars} aria-hidden>
+      <path d="M2.6 8.4a13.4 13.4 0 0 1 18.8 0" fill="none" stroke={stroke(4)} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M5.5 11.5a9.2 9.2 0 0 1 13 0" fill="none" stroke={stroke(3)} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8.4 14.6a5 5 0 0 1 7.2 0" fill="none" stroke={stroke(2)} strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="18" r="1.45" fill={bars === 0 ? empty : bars >= 1 ? on : "none"} />
     </svg>
   );
 }
