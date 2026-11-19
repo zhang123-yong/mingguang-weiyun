@@ -20,9 +20,15 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
-import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
+import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState, type UnlockAccess } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 import { LockAlbum, lockPreviewText } from "@/components/screens/lock-album";
+
+const ACCESS_OPTIONS: { id: UnlockAccess; label: string }[] = [
+  { id: "admin", label: "仅管理员可以使用" },
+  { id: "all", label: "所有用户可以使用" },
+  { id: "none", label: "所有用户都不可以" },
+];
 
 const FAQS: [string, string][] = [
   ["门锁屏不亮了，怎么办？", "先换一组新的干电池，并确认锂电池有电。长按后面板复位键 5 秒后重新上电。演示环境不会连接真实门锁。"],
@@ -55,6 +61,7 @@ type Page =
   | { id: "redeem" }
   | { id: "voice" }
   | { id: "camera" }
+  | { id: "talk" }
   | { id: "editor" }
   | { id: "remind" }
   | { id: "bind" }
@@ -134,6 +141,8 @@ export function LockPanel({ device }: { device: Device }) {
   const [recordFrom, setRecordFrom] = useState<number | null>(null);
   const [recordNow, setRecordNow] = useState(0);
   const [shutter, setShutter] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [accessDraft, setAccessDraft] = useState<UnlockAccess>("admin");
   const wifiBox = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -267,6 +276,10 @@ export function LockPanel({ device }: { device: Device }) {
   }
 
   function toggleLock() {
+    if (device.locked && panel.unlockAccess === "none") {
+      notify("所有用户都不可以远程开锁");
+      return;
+    }
     if (device.locked && !panel.remoteUnlock) {
       notify("远程开锁已关闭");
       return;
@@ -745,7 +758,7 @@ export function LockPanel({ device }: { device: Device }) {
             <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">开锁设置</p>
             <div className="mx-4 rounded-2xl bg-white px-4">
               <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>远程开锁</span><Toggle label="远程开锁" on={panel.remoteUnlock} onClick={() => save({ ...panel, remoteUnlock: !panel.remoteUnlock })} /></div>
-              <button type="button" onClick={() => notify("仅管理员可以使用远程开锁")} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">权限设置<span className="text-[13px] text-[#8e8e93]">仅管理员可以使用 ›</span></button>
+              <button type="button" onClick={() => { setAccessDraft(panel.unlockAccess); setAccessOpen(true); }} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">权限设置<span className="text-[13px] text-[#8e8e93]">{ACCESS_OPTIONS.find((item) => item.id === panel.unlockAccess)?.label} ›</span></button>
               <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3">
                 <span>语音密码<small className="block text-[12px] text-[#8e8e93]">语音音箱喊密码开门需要验证此密码</small></span>
                 <Toggle label="语音密码" on={panel.voiceOn} onClick={() => {
@@ -779,12 +792,38 @@ export function LockPanel({ device }: { device: Device }) {
         ) : null}
 
         {page.id === "camera" ? (
-          <section>
-            <Bar title="摄像头设置" onBack={back} />
-            <div className="mx-4 rounded-2xl bg-white px-4">
-              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>夜视</span><Toggle label="夜视" on={panel.night} onClick={() => save({ ...panel, night: !panel.night })} /></div>
-              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>宽动态</span><Toggle label="宽动态" on={panel.wdr} onClick={() => save({ ...panel, wdr: !panel.wdr })} /></div>
-              <button type="button" onClick={() => open({ id: "live" })} className="flex w-full items-center justify-between py-4">查看实时画面<span>›</span></button>
+          <section className="min-h-full bg-[#F7F8FA]">
+            <Bar title="基本功能设置" onBack={back} />
+            <button type="button" onClick={() => open({ id: "talk" })} className="mt-3 flex h-14 w-full items-center justify-between bg-white px-4 text-[16px]">
+              <span>对讲方式</span>
+              <span className="text-[14px] text-[#A0A4AA]">{panel.talkMode === "one" ? "单向对讲" : "双向对讲"} ›</span>
+            </button>
+          </section>
+        ) : null}
+
+        {page.id === "talk" ? (
+          <section className="min-h-full bg-[#F7F8FA]">
+            <Bar title="对讲方式" onBack={back} />
+            <p className="bg-white px-4 py-3 text-[13px] leading-6 text-[#A0A4AA]">因对讲可能受到环境因素的影响，导致通话效果欠佳，建议您根据实际使用情况选择单向或双向对讲</p>
+            <div className="mt-3 bg-white">
+              {([
+                ["one", "单向对讲", "按住对讲按钮说话"],
+                ["two", "双向对讲", "点按对讲按钮开始对讲"],
+              ] as const).map(([id, title, hint]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={panel.talkMode === id}
+                  onClick={() => save({ ...panel, talkMode: id })}
+                  className="flex w-full items-center border-b border-[#F3F4F6] px-4 py-3.5 text-left last:border-b-0"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[16px]">{title}</span>
+                    <span className="mt-1 block text-[13px] text-[#A0A4AA]">{hint}</span>
+                  </span>
+                  {panel.talkMode === id ? <Check className="size-5 text-[#12c4a0]" /> : null}
+                </button>
+              ))}
             </div>
           </section>
         ) : null}
@@ -1026,6 +1065,38 @@ export function LockPanel({ device }: { device: Device }) {
                   className="absolute left-[4%] top-[58%] h-[24%] w-[20%]"
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {accessOpen ? (
+        <div className="absolute inset-0 z-20 flex items-end bg-black/45">
+          <div className="w-full rounded-t-2xl bg-white pb-1">
+            <p className="py-4 text-center text-[16px] font-medium">权限设置</p>
+            {ACCESS_OPTIONS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={accessDraft === item.id}
+                onClick={() => setAccessDraft(item.id)}
+                className="flex h-14 w-full items-center justify-between border-t border-[#F2F3F5] px-5 text-[16px]"
+              >
+                {item.label}
+                {accessDraft === item.id ? <Check className="size-5 text-[#12c4a0]" /> : <span className="size-5" />}
+              </button>
+            ))}
+            <div className="mt-2 grid grid-cols-2 border-t border-[#F2F3F5] text-[16px]">
+              <button type="button" className="h-12 border-r border-[#F2F3F5]" onClick={() => setAccessOpen(false)}>取消</button>
+              <button
+                type="button"
+                className="h-12 font-medium text-[#12c4a0]"
+                onClick={() => {
+                  save({ ...panel, unlockAccess: accessDraft });
+                  setAccessOpen(false);
+                }}
+              >
+                确认
+              </button>
             </div>
           </div>
         </div>

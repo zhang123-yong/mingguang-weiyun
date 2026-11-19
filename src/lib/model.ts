@@ -24,8 +24,12 @@ export type TempCode = { id: string; code: string; expire: string };
 export type LockLinkItem = { id: string; name: string; desc: string; on: boolean };
 export type LockClip = { id: string; time: string; kind?: "shot" | "video" };
 export type LockRemind = { center: boolean; sms: boolean; call: boolean };
+export type TalkMode = "one" | "two";
+export type UnlockAccess = "admin" | "all" | "none";
 export type LockPanelState = {
   remoteUnlock: boolean;
+  talkMode: TalkMode;
+  unlockAccess: UnlockAccess;
   voiceOn: boolean;
   voicePin: string;
   wrist: boolean;
@@ -177,6 +181,8 @@ export const VOICES = ["温柔", "活泼", "沉稳"];
 export function defaultLockPanel(): LockPanelState {
   return {
     remoteUnlock: true,
+    talkMode: "two",
+    unlockAccess: "admin",
     voiceOn: false,
     voicePin: "",
     wrist: false,
