@@ -1,8 +1,25 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  BatteryMedium,
+  Bell,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Grid3x3,
+  Info,
+  List,
+  Lock,
+  Pencil,
+  Settings,
+  ToggleRight,
+  UserRound,
+  Video,
+  Wifi,
+} from "lucide-react";
 import { useApp } from "@/lib/app-state";
-import { nowLabel, lockPanelOf, rid, type Device, type LockPanelState } from "@/lib/model";
+import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 
 const FAQS: [string, string][] = [
@@ -13,14 +30,13 @@ const FAQS: [string, string][] = [
   ["什么是 AI 视觉？", "人脸识别和包裹识别会出现在门锁 AI 的视觉页。当前是即将上线的演示卡片，不会分析真实画面。"],
 ];
 
-const MENU: [string, string, string, string, "inbox" | "live" | "ai" | "members" | "temp" | "link" | "settings"][] = [
-  ["#12c4a0", "铃", "通知", "本地录像会丢失？云存可长期保存", "inbox"],
-  ["#2f9bff", "视", "视频监控", "", "live"],
-  ["#7a5cff", "AI", "AI", "", "ai"],
-  ["#22b07d", "人", "成员管理", "", "members"],
-  ["#f0a202", "密", "临时密码", "", "temp"],
-  ["#ff7a1a", "联", "智能联动", "", "link"],
-  ["#8e8e93", "设", "设置", "", "settings"],
+const MENU: { label: string; id: "live" | "ai" | "members" | "temp" | "link" | "settings"; icon: ReactNode }[] = [
+  { label: "视频监控", id: "live", icon: <Video className="size-5" /> },
+  { label: "AI", id: "ai", icon: <span className="text-[13px] font-semibold">AI</span> },
+  { label: "成员管理", id: "members", icon: <UserRound className="size-5" /> },
+  { label: "临时密码", id: "temp", icon: <Grid3x3 className="size-5" /> },
+  { label: "智能联动", id: "link", icon: <ToggleRight className="size-5" /> },
+  { label: "设置", id: "settings", icon: <Settings className="size-5" /> },
 ];
 
 type Page =
@@ -43,7 +59,11 @@ type Page =
   | { id: "notify" }
   | { id: "dnd" }
   | { id: "help"; faq?: number }
-  | { id: "album" };
+  | { id: "album" }
+  | { id: "gear" }
+  | { id: "info" }
+  | { id: "automation" }
+  | { id: "upgrade" };
 
 type Dialog = { kind: "phone-use" | "delete-member" | "clear-unread"; key?: "sms" | "call" } | null;
 
@@ -73,7 +93,7 @@ function Bar({ title, onBack, extra }: { title: string; onBack: () => void; extr
 }
 
 export function LockPanel({ device }: { device: Device }) {
-  const { patchDevice, pushLog, addLockUser } = useApp();
+  const { data, patchDevice, pushLog, addLockUser, removeDevice } = useApp();
   const { pop, notify } = useNav();
   const panel = lockPanelOf(device.lock);
   const [stack, setStack] = useState<Page[]>([{ id: "home" }]);
@@ -91,6 +111,15 @@ export function LockPanel({ device }: { device: Device }) {
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [talkOk, setTalkOk] = useState(false);
+  const [cardIndex, setCardIndex] = useState(0);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [frameWidth, setFrameWidth] = useState(0);
+  const [removeAsk, setRemoveAsk] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const frame = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; key: string; axis: "x" | "y" | null } | null>(null);
+  const offset = useRef(0);
   const page = stack[stack.length - 1] ?? { id: "home" as const };
   const hold = useRef<number | null>(null);
   const fired = useRef(false);
@@ -147,42 +176,181 @@ export function LockPanel({ device }: { device: Device }) {
   }
 
   const unlocked = !device.locked;
+  const latest = device.logs[0];
+  const clock = latest?.time.match(/(\d{1,2}:\d{2})/)?.[1] ?? "";
+  const slides = [
+    {
+      key: "album",
+      title: "相册/日志",
+      body: latest ? `${clock}${latest.text}` : "暂无记录",
+      count: device.logs.length,
+      icon: "list" as const,
+      go: () => open({ id: "album" }),
+    },
+    {
+      key: "notice",
+      title: "通知",
+      body: "本地录像会丢？云存永久存",
+      count: 0,
+      icon: "bell" as const,
+      go: () => open({ id: "inbox" }),
+    },
+  ];
+  const peek = 64;
+  const gap = 10;
+  const inset = 16;
+  const cardWidth = Math.max(frameWidth - peek - inset, 0);
+  const stride = cardWidth + gap;
+
+  useLayoutEffect(() => {
+    const node = frame.current;
+    if (!node || page.id !== "home") return;
+    const measure = () => setFrameWidth(node.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [page.id]);
+
+  function shiftCard(step: number) {
+    setCardIndex((index) => Math.min(slides.length - 1, Math.max(0, index + step)));
+  }
 
   return (
     <div className="relative flex h-full flex-col bg-[#F7F8FA] text-[#222]">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {page.id === "home" ? (
-          <section className="min-h-full bg-white">
-            <Bar title={device.name || "可视智能门锁"} onBack={back} />
-            <div className="flex justify-center pt-4">
-              <button
-                type="button"
-                aria-label="长按开锁"
-                {...holdProps("请长按开锁", unlock)}
-                className="relative grid size-[168px] place-items-center rounded-full text-[#12a888] active:scale-[0.97]"
-                style={{ background: "conic-gradient(#12c4a0 0 280deg, #d9f7ef 280deg 360deg)" }}
-              >
-                <span className="absolute inset-[14px] rounded-full bg-white" />
-                <span className="relative grid place-items-center">
-                  <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <rect x="6" y="10" width="12" height="9" rx="2" />
-                    <path d="M8 10V8a4 4 0 0 1 8 0v2" />
-                  </svg>
-                  <span className="text-[13px] font-semibold">{unlocked ? "已开锁" : "长按开锁"}</span>
-                </span>
+          <section className="min-h-full bg-[#F3F4F6]">
+            <header className="relative flex h-12 items-center justify-center px-12">
+              <button type="button" aria-label="返回" onClick={back} className="absolute left-1 grid size-10 place-items-center">
+                <ChevronLeft className="size-6" />
               </button>
+              <h1 className="truncate text-[17px] font-medium">{device.name || "可视智能门锁"}</h1>
+              <button type="button" aria-label="设备设置" onClick={() => open({ id: "gear" })} className="absolute right-2 grid size-10 place-items-center">
+                <Pencil className="size-5" />
+              </button>
+            </header>
+            <div className="flex justify-center pt-2">
+              <span className="grid size-10 place-items-center rounded-full bg-[#E7F8F2] text-[#20C6A4]">
+                <Wifi className="size-5" />
+              </span>
             </div>
-            <p className="mt-3 mb-4 text-center text-[13px] text-[#8e8e93]">电池电量：{device.battery}%</p>
-            <div className="px-4">
-              {MENU.map(([color, mark, name, desc, id]) => (
-                <button key={name} type="button" onClick={() => open({ id })} className="flex w-full items-center gap-3 py-3.5 text-left">
-                  <i className="grid size-7 place-items-center rounded-full text-[13px] text-white not-italic" style={{ background: color }}>
-                    {mark}
-                  </i>
-                  <span>
-                    <b className="block text-[16px] font-semibold">{name}</b>
-                    {desc ? <small className="text-[12px] text-[#8e8e93]">{desc}</small> : null}
-                  </span>
+            <button
+              type="button"
+              aria-label="长按开锁"
+              {...holdProps("请长按开锁", unlock)}
+              className="mx-auto mt-4 grid size-[210px] place-items-center"
+            >
+              <span className="relative grid size-[210px] place-items-center">
+                <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#D9F6EF" strokeWidth="9" />
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
+                </svg>
+                <span className="grid size-[132px] place-items-center rounded-full bg-white text-[#20C6A4]">
+                  <Lock className="size-8" />
+                  <span className="mt-1 text-[14px]">{unlocked ? "已开锁" : "长按开锁"}</span>
+                </span>
+              </span>
+            </button>
+            <div className="mt-4 flex flex-col items-center text-[#8A8F98]">
+              <BatteryMedium className="size-6 text-[#2BD18A]" />
+              <p className="mt-1 text-[13px]">电池电量: {device.battery}%</p>
+            </div>
+            <div
+              ref={frame}
+              className="mt-5 overflow-hidden"
+              style={{ touchAction: "pan-y" }}
+              onPointerDown={(event) => {
+                const key = (event.target as HTMLElement).closest("[data-slide]")?.getAttribute("data-slide") ?? "";
+                drag.current = { x: event.clientX, y: event.clientY, moved: false, key, axis: null };
+                offset.current = 0;
+              }}
+              onPointerMove={(event) => {
+                const current = drag.current;
+                if (!current || stride <= gap) return;
+                const dx = event.clientX - current.x;
+                const dy = event.clientY - current.y;
+                if (!current.axis && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+                  current.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+                  if (current.axis === "x") {
+                    current.moved = true;
+                    setDragging(true);
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }
+                }
+                if (current.axis !== "x") return;
+                const min = -(slides.length - 1) * stride;
+                const next = Math.min(24, Math.max(min - 24, -cardIndex * stride + dx)) + cardIndex * stride;
+                offset.current = next;
+                setDragX(next);
+              }}
+              onPointerUp={() => {
+                const current = drag.current;
+                drag.current = null;
+                const delta = offset.current;
+                offset.current = 0;
+                setDragging(false);
+                setDragX(0);
+                if (!current || current.axis === "y") return;
+                if (!current.moved) {
+                  slides.find((slide) => slide.key === current.key)?.go();
+                  return;
+                }
+                if (delta < -40) shiftCard(1);
+                else if (delta > 40) shiftCard(-1);
+              }}
+              onPointerCancel={() => {
+                drag.current = null;
+                offset.current = 0;
+                setDragging(false);
+                setDragX(0);
+              }}
+            >
+              <div
+                className="flex"
+                style={{
+                  gap,
+                  paddingLeft: inset,
+                  transform: `translateX(${-cardIndex * stride + dragX}px)`,
+                  transition: dragging ? "none" : "transform 280ms ease",
+                }}
+              >
+                {slides.map((slide) => (
+                  <button
+                    key={slide.key}
+                    type="button"
+                    data-slide={slide.key}
+                    className="flex shrink-0 items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(20,24,40,0.04)]"
+                    style={{ width: cardWidth || "100%" }}
+                  >
+                    {slide.icon === "list" ? (
+                      <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[#2BD18A] text-white">
+                        <List className="size-5" strokeWidth={2.4} />
+                      </span>
+                    ) : (
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#E8FBF3] text-[#2BD18A]">
+                        <Bell className="size-5" />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-[16px] font-medium">{slide.title}</span>
+                        {slide.count > 0 ? (
+                          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#F04444] px-1 text-[11px] text-white">{slide.count}</span>
+                        ) : null}
+                      </span>
+                      <span className="mt-1 block truncate text-[13px] text-[#666]">· {slide.body}</span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-[#D0D0D0]" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mx-4 mt-3 overflow-hidden rounded-2xl bg-white">
+              {MENU.map((row) => (
+                <button key={row.label} type="button" onClick={() => open({ id: row.id })} className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
+                  <span className="grid size-9 place-items-center rounded-full bg-[#2BD18A] text-white">{row.icon}</span>
+                  <span className="text-[16px]">{row.label}</span>
                 </button>
               ))}
             </div>
@@ -545,11 +713,106 @@ export function LockPanel({ device }: { device: Device }) {
 
         {page.id === "album" ? (
           <section>
-            <Bar title="相册" onBack={back} />
+            <Bar title="相册/日志" onBack={back} />
+            <p className="px-5 pt-2 text-[13px] text-[#8e8e93]">相册</p>
             <div className="mx-4 rounded-2xl bg-white px-4">
               {panel.album.length ? panel.album.map((clip) => (
-                <div key={clip.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>本地录像</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{clip.time} 已保存在本机，不会上传</small></div>
-              )) : <p className="py-4 text-[#8e8e93]">还没有录像。在实时画面里点录像，停止后会出现在这里。</p>}
+                <div key={clip.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>门口录像</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{clip.time}</small></div>
+              )) : <p className="py-4 text-[#8e8e93]">还没有录像。在视频监控里点录像，停止后会出现在这里。</p>}
+            </div>
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">日志</p>
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              {device.logs.length ? device.logs.map((item) => (
+                <div key={item.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>{item.text}</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{item.time}</small></div>
+              )) : <p className="py-4 text-[#8e8e93]">还没有门铃或开锁记录。</p>}
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "gear" ? (
+          <section className="min-h-full bg-[#F4F5F7] pb-8">
+            <header className="flex h-12 items-center px-2">
+              <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center"><ChevronLeft className="size-6" /></button>
+              <span className="grid size-8 place-items-center rounded-lg bg-white text-[#20C6A4]"><Lock className="size-4" /></span>
+              {editingName ? (
+                <input
+                  autoFocus
+                  value={device.name}
+                  onChange={(event) => patchDevice(device.id, { name: event.target.value })}
+                  onBlur={() => setEditingName(false)}
+                  className="mx-2 h-9 min-w-0 flex-1 rounded-lg bg-white px-2 text-[16px] outline-none"
+                />
+              ) : <h1 className="mx-2 min-w-0 flex-1 truncate text-[17px] font-medium">{device.name || "可视智能门锁"}</h1>}
+              <button type="button" aria-label="编辑名称" onClick={() => setEditingName(true)} className="grid size-9 place-items-center"><Pencil className="size-4" /></button>
+              <button type="button" aria-label="设备信息" onClick={() => open({ id: "info" })} className="grid size-9 place-items-center"><ChevronRight className="size-5 text-[#C8C8C8]" /></button>
+            </header>
+            <div className="grid grid-cols-2 gap-3 px-4 pt-2">
+              <button type="button" onClick={() => open({ id: "info" })} className="rounded-2xl bg-white p-4 text-left">
+                <span className="grid size-9 place-items-center rounded-full bg-[#E8F1FF] text-[#3B82F6]"><Info className="size-5" /></span>
+                <span className="mt-6 block text-[16px]">设备信息</span>
+              </button>
+              <button type="button" onClick={() => open({ id: "automation" })} className="rounded-2xl bg-white p-4 text-left">
+                <span className="grid size-9 place-items-center rounded-full bg-[#E8F1FF] text-[#3B82F6]"><Check className="size-5" /></span>
+                <span className="mt-6 block text-[15px] leading-6">“手动执行”和“自动化”</span>
+              </button>
+              <button type="button" onClick={() => open({ id: "notify" })} className="rounded-2xl bg-white p-4 text-left">
+                <span className="grid size-9 place-items-center rounded-full bg-[#E8F1FF] text-[#3B82F6]"><Bell className="size-5" /></span>
+                <span className="mt-6 block text-[15px] leading-6">设备告警电话短信通知</span>
+              </button>
+            </div>
+            <p className="px-5 pb-2 pt-5 text-[13px] text-[#98A0AA]">设备设置</p>
+            <div className="mx-4 flex items-center justify-between rounded-2xl bg-white px-4 py-4">
+              <span className="text-[16px]">离线提醒</span>
+              <Toggle label="离线提醒" on={device.offlineAlert} onClick={() => {
+                patchDevice(device.id, { offlineAlert: !device.offlineAlert });
+                pushLog(device.id, device.offlineAlert ? "已关闭离线提醒" : "已打开离线提醒");
+              }} />
+            </div>
+            <p className="px-5 pb-2 pt-5 text-[13px] text-[#98A0AA]">通用设置</p>
+            <div className="mx-4 overflow-hidden rounded-2xl bg-white px-4">
+              <button type="button" onClick={() => open({ id: "help" })} className="flex w-full items-center justify-between border-b border-[#F3F4F6] py-4 text-[16px]">帮助中心<ChevronRight className="size-4 text-[#C8C8C8]" /></button>
+              <button type="button" onClick={() => notify("可以在浏览器菜单里选择添加到主屏幕")} className="flex w-full items-center justify-between border-b border-[#F3F4F6] py-4 text-[16px]">添加到主屏幕<ChevronRight className="size-4 text-[#C8C8C8]" /></button>
+              <button type="button" onClick={() => open({ id: "upgrade" })} className="flex w-full items-center justify-between py-4 text-[16px]">设备升级<span className="flex items-center gap-1 text-[14px] text-[#98A0AA]">已是最新版本<ChevronRight className="size-4 text-[#C8C8C8]" /></span></button>
+            </div>
+            <button type="button" onClick={() => setRemoveAsk(true)} className="mx-4 mt-4 h-12 w-[calc(100%-2rem)] rounded-full bg-white text-[16px] text-[#F04444]">移除设备</button>
+          </section>
+        ) : null}
+
+        {page.id === "info" ? (
+          <section>
+            <Bar title="设备信息" onBack={back} />
+            <div className="mx-4 overflow-hidden rounded-2xl bg-white px-4">
+              {[
+                ["设备名称", device.name || "可视智能门锁"],
+                ["产品型号", productOf(device.productId)?.model ?? "MG-L1"],
+                ["所在房间", data.homes.find((home) => home.id === device.homeId)?.rooms.find((room) => room.id === device.roomId)?.name ?? "未分配"],
+                ["设备 ID", device.id],
+                ["固件版本", "1.0.0"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between border-b border-[#F3F4F6] py-4 last:border-b-0">
+                  <span>{label}</span><span className="max-w-[55%] truncate text-[14px] text-[#98A0AA]">{value}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "automation" ? (
+          <section>
+            <Bar title="手动执行和自动化" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              <button type="button" onClick={() => open({ id: "link" })} className="flex w-full items-center justify-between border-b border-[#F3F4F6] py-4 text-left"><span><b className="block">手动执行</b><small className="text-[12px] text-[#98A0AA]">点一下就开门、开灯或发一条提醒</small></span><ChevronRight className="size-4 text-[#C8C8C8]" /></button>
+              <button type="button" onClick={() => open({ id: "link" })} className="flex w-full items-center justify-between py-4 text-left"><span><b className="block">自动化</b><small className="text-[12px] text-[#98A0AA]">家人回家、门锁告警、有人按门铃时自动执行</small></span><ChevronRight className="size-4 text-[#C8C8C8]" /></button>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "upgrade" ? (
+          <section>
+            <Bar title="设备升级" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white p-6 text-center">
+              <p className="text-[16px]">已是最新版本</p>
+              <p className="mt-2 text-[13px] text-[#98A0AA]">当前版本 1.0.0。演示环境不会连接门锁固件。</p>
             </div>
           </section>
         ) : null}
@@ -569,6 +832,18 @@ export function LockPanel({ device }: { device: Device }) {
           </section>
         ) : null}
       </div>
+      {removeAsk ? (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/40 px-8">
+          <div className="w-full rounded-2xl bg-white p-5">
+            <p className="text-[16px] font-medium">移除设备</p>
+            <p className="mt-2 leading-6">从家里移除「{device.name || "可视智能门锁"}」？</p>
+            <div className="mt-4 flex gap-3">
+              <button type="button" className="h-10 flex-1 rounded-full bg-[#F2F3F5]" onClick={() => setRemoveAsk(false)}>取消</button>
+              <button type="button" className="h-10 flex-1 rounded-full bg-[#F04444] text-white" onClick={() => { removeDevice(device.id); notify("设备已移除"); pop(); }}>移除</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {dialog ? (
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/40 px-8">
           <div className="w-full rounded-2xl bg-white p-5">

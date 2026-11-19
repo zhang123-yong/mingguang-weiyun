@@ -247,6 +247,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         logs:
           product.category === "lock"
             ? [
+                { id: rid(), text: "门铃呼叫", time: nowLabel() },
                 { id: rid(), text: "远程解锁", time: nowLabel() },
                 { id: rid(), text: "设备添加成功", time: nowLabel() },
               ]
