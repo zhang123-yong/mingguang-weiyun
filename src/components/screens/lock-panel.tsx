@@ -19,7 +19,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
-import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockFamilyMember, type LockPanelState, type LockUser } from "@/lib/model";
+import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 
 const FAQS: [string, string][] = [
@@ -45,9 +45,7 @@ type Page =
   | { id: "live" }
   | { id: "ai" }
   | { id: "members" }
-  | { id: "member"; memberId: string }
-  | { id: "member-add" }
-  | { id: "enroll"; type: string; memberId: string }
+  | { id: "enroll"; type: string }
   | { id: "temp" }
   | { id: "link" }
   | { id: "settings" }
@@ -67,9 +65,7 @@ type Page =
   | { id: "automation" }
   | { id: "upgrade" };
 
-type Dialog = { kind: "phone-use" | "delete-member" | "clear-unread"; key?: "sms" | "call"; memberId?: string } | null;
-
-const OPEN_METHODS = ["指纹", "密码", "门卡", "人脸识别"] as const;
+type Dialog = { kind: "phone-use" | "delete-member" | "clear-unread"; key?: "sms" | "call" } | null;
 
 function Toggle({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
   return (
@@ -93,60 +89,6 @@ function Bar({ title, onBack, extra }: { title: string; onBack: () => void; extr
       <h2 className="flex-1 text-center text-[17px] font-semibold">{title}</h2>
       <div className="flex min-w-10 justify-end pr-2">{extra}</div>
     </div>
-  );
-}
-
-function MemberDetail({
-  member,
-  credentials,
-  isOwner,
-  onBack,
-  onEnroll,
-  onDelete,
-}: {
-  member?: LockFamilyMember;
-  credentials: LockUser[];
-  isOwner: boolean;
-  onBack: () => void;
-  onEnroll: (type: string) => void;
-  onDelete: () => void;
-}) {
-  if (!member) {
-    return (
-      <section>
-        <Bar title="家庭成员" onBack={onBack} />
-        <p className="px-5 py-8 text-center text-[#8e8e93]">这位成员已经不在了。</p>
-      </section>
-    );
-  }
-  return (
-    <section>
-      <Bar title={member.name} onBack={onBack} />
-      <div className="mx-4 flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
-        <span className="grid size-14 place-items-center rounded-full bg-[#E8FBF3] text-[20px] font-medium text-[#12A37A]">
-          {member.name.slice(0, 1)}
-        </span>
-        <span>
-          <span className="block text-[18px] font-medium">{member.name}</span>
-          <span className="mt-1 block text-[13px] text-[#8e8e93]">{member.role}</span>
-        </span>
-      </div>
-      <p className="px-5 pb-2 pt-4 text-[13px] text-[#8e8e93]">开门方式</p>
-      <div className="mx-4 overflow-hidden rounded-2xl bg-white px-4">
-        {OPEN_METHODS.map((type) => {
-          const count = credentials.filter((user) => user.method === type).length;
-          return (
-            <button key={type} type="button" onClick={() => onEnroll(type)} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4 last:border-b-0">
-              <span>{type}</span>
-              <span className="text-[#8e8e93]">{count ? `${count} 枚` : "添加"} ›</span>
-            </button>
-          );
-        })}
-      </div>
-      <button type="button" onClick={onDelete} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full border border-[#f3d2cc] bg-white text-[#e25b4a]">
-        {isOwner ? "清空开门方式" : "删除成员"}
-      </button>
-    </section>
   );
 }
 
@@ -176,8 +118,6 @@ export function LockPanel({ device }: { device: Device }) {
   const [removeAsk, setRemoveAsk] = useState(false);
   const [noticeSheet, setNoticeSheet] = useState(false);
   const [editingName, setEditingName] = useState(false);
-  const [addName, setAddName] = useState("");
-  const [addRole, setAddRole] = useState<"管理员" | "家人">("家人");
   const frame = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean; key: string; axis: "x" | "y" | null } | null>(null);
   const offset = useRef(0);
@@ -204,17 +144,6 @@ export function LockPanel({ device }: { device: Device }) {
     setDialog(null);
     if (stack.length > 1) setStack((current) => current.slice(0, -1));
     else pop();
-  }
-
-  function credentialsOf(memberId: string) {
-    const ownerId = panel.family[0]?.id;
-    return device.lockUsers.filter((user) => user.memberId === memberId || (!user.memberId && memberId === ownerId));
-  }
-
-  function openAddMember() {
-    setAddName("");
-    setAddRole("家人");
-    open({ id: "member-add" });
   }
 
   function holdProps(hint: string, fire: () => void) {
@@ -515,108 +444,26 @@ export function LockPanel({ device }: { device: Device }) {
 
         {page.id === "members" ? (
           <section>
-            <Bar
-              title="家庭成员"
-              onBack={back}
-              extra={<button type="button" className="text-[15px] text-[#12A37A]" onClick={openAddMember}>添加</button>}
-            />
+            <Bar title="成员管理" onBack={back} extra={<button type="button" aria-label="设置" onClick={() => open({ id: "settings" })}>⚙</button>} />
             <div className="mx-4 rounded-2xl bg-white px-4 py-3">
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索成员" className="h-10 w-full bg-transparent outline-none" />
             </div>
-            {panel.family.filter((member) => !query.trim() || member.name.includes(query.trim())).length === 0 ? (
-              <div className="mx-4 mt-3 rounded-2xl bg-white p-4 text-[#8e8e93]">没有匹配的成员</div>
-            ) : (
-              <div className="mx-4 mt-3 overflow-hidden rounded-2xl bg-white">
-                {panel.family.filter((member) => !query.trim() || member.name.includes(query.trim())).map((member) => {
-                  const creds = credentialsOf(member.id);
-                  const summary = OPEN_METHODS.map((type) => `${type} ${creds.filter((user) => user.method === type).length}`).join(" · ");
+            {!query.trim() || panel.admin.includes(query.trim()) ? (
+              <div className="mx-4 mt-3 rounded-2xl bg-white px-4">
+                <div className="border-b border-[#f2f3f5] py-3"><b>{panel.admin}</b><small className="ml-2 text-[#8e8e93]">管理员</small></div>
+                {["指纹", "密码", "门卡", "人脸识别"].map((type) => {
+                  const count = device.lockUsers.filter((user) => user.method === type).length;
                   return (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => open({ id: "member", memberId: member.id })}
-                      className="flex w-full items-center gap-3 border-b border-[#f2f3f5] px-4 py-3 text-left last:border-b-0"
-                    >
-                      <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#E8FBF3] text-[16px] font-medium text-[#12A37A]">
-                        {member.name.slice(0, 1)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="text-[16px]">{member.name}</span>
-                          <span className="rounded bg-[#E8FBF3] px-1.5 py-0.5 text-[11px] text-[#12A37A]">{member.role}</span>
-                        </span>
-                        <span className="mt-1 block truncate text-[12px] text-[#8e8e93]">{summary}</span>
-                      </span>
-                      <ChevronRight className="size-4 shrink-0 text-[#D0D0D0]" />
+                    <button key={type} type="button" onClick={() => open({ id: "enroll", type })} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4 last:border-b-0">
+                      <span>{type}</span><span className="text-[#8e8e93]">{count ? `${count} 枚` : "添加"} ›</span>
                     </button>
                   );
                 })}
               </div>
-            )}
-            <button type="button" onClick={openAddMember} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white">
-              添加成员
-            </button>
-          </section>
-        ) : null}
-
-        {page.id === "member" ? (
-          <MemberDetail
-            member={panel.family.find((item) => item.id === page.memberId)}
-            credentials={credentialsOf(page.memberId)}
-            isOwner={panel.family[0]?.id === page.memberId}
-            onBack={back}
-            onEnroll={(type) => open({ id: "enroll", type, memberId: page.memberId })}
-            onDelete={() => setDialog({ kind: "delete-member", memberId: page.memberId })}
-          />
-        ) : null}
-
-        {page.id === "member-add" ? (
-          <section>
-            <Bar title="添加成员" onBack={back} />
-            <div className="mx-4 rounded-2xl bg-white p-4">
-              <p className="text-[13px] text-[#8e8e93]">成员名称</p>
-              <input
-                value={addName}
-                onChange={(event) => setAddName(event.target.value)}
-                placeholder="例如 妈妈"
-                className="mt-2 h-11 w-full rounded-xl border border-[#E8E8E8] px-3 outline-none focus:border-[#12c4a0]"
-              />
-              <p className="mt-4 text-[13px] text-[#8e8e93]">成员角色</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {(["家人", "管理员"] as const).map((role) => (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => setAddRole(role)}
-                    className={`h-11 rounded-xl ${addRole === role ? "bg-[#12c4a0] text-white" : "bg-[#F2F3F5]"}`}
-                  >
-                    {role}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="mt-5 h-11 w-full rounded-full bg-[#12c4a0] text-white"
-                onClick={() => {
-                  const name = addName.trim();
-                  if (!name) {
-                    notify("请填写成员名称");
-                    return;
-                  }
-                  if (panel.family.some((member) => member.name === name)) {
-                    notify("已经有这个成员");
-                    return;
-                  }
-                  const member = { id: rid(), name, role: addRole };
-                  save({ ...panel, family: [...panel.family, member] }, `${name}已加入家庭`);
-                  notify("已添加成员");
-                  back();
-                }}
-              >
-                添加
-              </button>
-              <p className="mt-3 text-[12px] leading-5 text-[#8e8e93]">添加后可以给这位成员录入指纹、密码、门卡和人脸。演示不会下发到真实门锁。</p>
-            </div>
+            ) : <div className="mx-4 mt-3 rounded-2xl bg-white p-4 text-[#8e8e93]">没有匹配的成员</div>}
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">其他成员</p>
+            <div className="mx-4 rounded-2xl bg-white p-4 text-[#8e8e93]">还没有其他成员</div>
+            <button type="button" onClick={() => setDialog({ kind: "delete-member" })} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full border border-[#f3d2cc] bg-white text-[#e25b4a]">删除成员</button>
           </section>
         ) : null}
 
@@ -627,8 +474,7 @@ export function LockPanel({ device }: { device: Device }) {
               {page.type === "指纹" ? "将手指放在锁的指纹区，按提示抬起再按下，直到提示成功。" : page.type === "人脸识别" ? "正对门锁摄像头，按开始后在锁前停留，直到提示录入成功。" : page.type === "密码" ? "在锁的键盘上输入 6 位数字，再输入一次确认。" : "将门卡放在图示感应区域，直到听到录入成功。若出现其他提示，则添加失败。"}
             </div>
             <button type="button" className="mx-4 mt-6 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white" onClick={() => {
-              const member = panel.family.find((item) => item.id === page.memberId);
-              addLockUser(device.id, `${member?.name ?? ""}${page.type}${credentialsOf(page.memberId).length + 1}`, page.type, page.memberId);
+              addLockUser(device.id, `${page.type}${device.lockUsers.length + 1}`, page.type);
               pushLog(device.id, `${page.type}添加成功`);
               notify("添加成功");
               back();
@@ -1024,24 +870,15 @@ export function LockPanel({ device }: { device: Device }) {
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/40 px-8">
           <div className="w-full rounded-2xl bg-white p-5">
             <p className="leading-6">
-              {dialog.kind === "phone-use" ? "我们在此收集您的电话号码仅为了为您提供短信或来电提醒，不会将号码用于其他用途。如果您不提供此信息，对应提醒将无法使用。" : dialog.kind === "delete-member" ? (panel.family[0]?.id === dialog.memberId ? "清空后，管理员的指纹、密码、门卡和人脸会从这把演示门锁移除。" : "删除后，该成员和对应的开门方式会从这把演示门锁移除。") : "确定清除全部未读消息？此操作只影响本机演示记录。"}
+              {dialog.kind === "phone-use" ? "我们在此收集您的电话号码仅为了为您提供短信或来电提醒，不会将号码用于其他用途。如果您不提供此信息，对应提醒将无法使用。" : dialog.kind === "delete-member" ? "删除后，该成员的指纹、密码和门卡会从这把演示门锁移除。" : "确定清除全部未读消息？此操作只影响本机演示记录。"}
             </p>
             <div className="mt-4 flex gap-3">
               <button type="button" className="h-10 flex-1 rounded-full bg-[#F2F3F5]" onClick={() => setDialog(null)}>取消</button>
               <button type="button" className="h-10 flex-1 rounded-full bg-[#12c4a0] text-white" onClick={() => {
-                if (dialog.kind === "delete-member" && dialog.memberId) {
-                  const ownerId = panel.family[0]?.id;
-                  const removingOwner = dialog.memberId === ownerId;
-                  const lockUsers = device.lockUsers.filter((user) => (user.memberId ?? ownerId) !== dialog.memberId);
-                  patchDevice(
-                    device.id,
-                    removingOwner
-                      ? { lockUsers }
-                      : { lock: { ...panel, family: panel.family.filter((member) => member.id !== dialog.memberId) }, lockUsers },
-                  );
-                  pushLog(device.id, removingOwner ? "已清空管理员开门方式" : "已删除成员");
-                  notify(removingOwner ? "开门方式已清空" : "成员已删除");
-                  if (!removingOwner && page.id === "member") back();
+                if (dialog.kind === "delete-member") {
+                  patchDevice(device.id, { lockUsers: [] });
+                  pushLog(device.id, "已删除成员凭据");
+                  notify("成员凭据已删除");
                 }
                 if (dialog.kind === "clear-unread") notify("未读已清除");
                 if (dialog.kind === "phone-use" && dialog.key) {
@@ -1049,7 +886,7 @@ export function LockPanel({ device }: { device: Device }) {
                   notify("已记下提醒方式");
                 }
                 setDialog(null);
-              }}>{dialog.kind === "delete-member" ? (panel.family[0]?.id === dialog.memberId ? "清空" : "删除") : dialog.kind === "phone-use" ? "设置" : "清除"}</button>
+              }}>{dialog.kind === "delete-member" ? "删除" : dialog.kind === "phone-use" ? "设置" : "清除"}</button>
             </div>
           </div>
         </div>

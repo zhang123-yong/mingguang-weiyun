@@ -19,8 +19,7 @@ export type Home = {
 };
 
 export type DeviceLog = { id: string; text: string; time: string };
-export type LockUser = { id: string; name: string; method: string; memberId?: string };
-export type LockFamilyMember = { id: string; name: string; role: "管理员" | "家人" };
+export type LockUser = { id: string; name: string; method: string };
 export type TempCode = { id: string; code: string; expire: string };
 export type LockLinkItem = { id: string; name: string; desc: string; on: boolean };
 export type LockClip = { id: string; time: string };
@@ -38,7 +37,6 @@ export type LockPanelState = {
   clarity: string;
   links: LockLinkItem[];
   admin: string;
-  family: LockFamilyMember[];
   night: boolean;
   wdr: boolean;
   muted: boolean;
@@ -194,7 +192,6 @@ export function defaultLockPanel(): LockPanelState {
       { id: "bell", name: "有人按门铃", desc: "有人按门铃，电话短信通知", on: false },
     ],
     admin: "我",
-    family: [{ id: "owner", name: "我", role: "管理员" }],
     night: true,
     wdr: false,
     muted: false,
@@ -216,7 +213,6 @@ export function lockPanelOf(lock?: LockPanelState): LockPanelState {
     links: lock.links?.length ? lock.links : base.links,
     remind: { ...base.remind, ...lock.remind },
     album: lock.album ?? [],
-    family: lock.family?.length ? lock.family : base.family,
   };
 }
 
