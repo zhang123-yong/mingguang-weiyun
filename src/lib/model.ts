@@ -207,7 +207,7 @@ export function defaultLockPanel(): LockPanelState {
     album: [],
     tempPass: "",
     tempHours: 2,
-    remind: { center: true, sms: false, call: false },
+    remind: { center: false, sms: false, call: false },
     boundPhone: "",
   };
 }

@@ -74,8 +74,8 @@ type Page =
   | { id: "camera" }
   | { id: "talk" }
   | { id: "editor" }
-  | { id: "remind" }
-  | { id: "bind" }
+  | { id: "remind"; from?: "doorbell" }
+  | { id: "bind"; channel: "sms" | "call" }
   | { id: "notify" }
   | { id: "dnd" }
   | { id: "help"; faq?: number }
@@ -128,6 +128,11 @@ export function LockPanel({ device }: { device: Device }) {
   const [linkThen, setLinkThen] = useState("");
   const [linkName, setLinkName] = useState("");
   const [phone, setPhone] = useState(panel.boundPhone);
+  const [remindDraft, setRemindDraft] = useState(panel.remind);
+  const [bindCode, setBindCode] = useState("");
+  const [bindInput, setBindInput] = useState("");
+  const [bindSent, setBindSent] = useState(false);
+  const [bindWait, setBindWait] = useState(0);
   const [gestureStep, setGestureStep] = useState<"draw" | "confirm">("draw");
   const [gestureFirst, setGestureFirst] = useState("");
   const [mailCode, setMailCode] = useState("");
@@ -242,6 +247,12 @@ export function LockPanel({ device }: { device: Device }) {
   }, [talking]);
 
   useEffect(() => {
+    if (bindWait <= 0) return;
+    const timer = window.setTimeout(() => setBindWait((current) => current - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [bindWait]);
+
+  useEffect(() => {
     if (page.id !== "verify") return;
     issueMailCode(data.user?.phone || panel.boundPhone);
     // Only send when this page opens.
@@ -327,6 +338,28 @@ export function LockPanel({ device }: { device: Device }) {
       return;
     }
     saveClip("video");
+  }
+
+  function startPhoneBind(channel: "sms" | "call") {
+    setBindSent(false);
+    setBindInput("");
+    setBindCode("");
+    setBindWait(0);
+    setPhone(panel.boundPhone);
+    open({ id: "bind", channel });
+  }
+
+  function sendBindCode() {
+    if (!/^1\d{10}$/.test(phone)) {
+      notify("请输入 11 位手机号");
+      return;
+    }
+    if (bindWait > 0) return;
+    const next = String(100000 + Math.floor(Math.random() * 900000));
+    setBindCode(next);
+    setBindSent(true);
+    setBindWait(60);
+    notify(`验证码 ${next}，演示不会发送真实短信`);
   }
 
   function issueMailCode(account: string) {
@@ -848,7 +881,7 @@ export function LockPanel({ device }: { device: Device }) {
               ))}
             </div>
             <button type="button" onClick={() => open({ id: "editor" })} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white">自定义联动类型</button>
-            <button type="button" onClick={() => open({ id: "remind" })} className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-white px-4">选择提醒方式<span>›</span></button>
+            <button type="button" onClick={() => { setRemindDraft(panel.remind); open({ id: "remind" }); }} className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-white px-4">选择提醒方式<span>›</span></button>
             {loading ? <p className="mt-4 text-center text-[13px] text-[#8e8e93]">加载中…</p> : null}
           </section>
         ) : null}
@@ -915,7 +948,18 @@ export function LockPanel({ device }: { device: Device }) {
                   修改手势密码<span className="text-[#C8C8C8]">›</span>
                 </button>
               ) : null}
-              <div className="flex items-center justify-between py-3"><span>门铃短信电话通知服务</span><Toggle label="门铃短信电话通知" on={panel.phoneService} onClick={() => save({ ...panel, phoneService: !panel.phoneService })} /></div>
+              <div className="flex items-center justify-between py-3">
+                <span>门铃短信电话通知服务</span>
+                <Toggle label="门铃短信电话通知" on={panel.phoneService} onClick={() => {
+                  if (!panel.phoneService) {
+                    setRemindDraft({ center: false, sms: false, call: false });
+                    open({ id: "remind", from: "doorbell" });
+                    return;
+                  }
+                  save({ ...panel, phoneService: false });
+                  notify("已关闭门铃短信电话通知");
+                }} />
+              </div>
             </div>
           </section>
         ) : null}
@@ -1082,42 +1126,121 @@ export function LockPanel({ device }: { device: Device }) {
         ) : null}
 
         {page.id === "remind" ? (
-          <section>
-            <div className="flex h-12 items-center px-1">
+          <section className="min-h-full">
+            <div className="grid h-12 grid-cols-[72px_1fr_72px] items-center px-1">
               <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
-              <h2 className="flex-1 text-center text-[17px] font-semibold">选择提醒方式</h2>
-              <button type="button" className="pr-3 text-[#ff7a1a]" onClick={() => { notify("提醒方式已保存"); open({ id: "notify" }); }}>下一步</button>
+              <h2 className="text-center text-[17px] font-semibold">选择提醒方式</h2>
+              <button
+                type="button"
+                className="pr-2 text-right text-[16px] text-[#FF7A1A]"
+                onClick={() => {
+                  const picked = remindDraft.center || remindDraft.sms || remindDraft.call;
+                  if (!picked) {
+                    notify("请选择提醒方式");
+                    return;
+                  }
+                  if ((remindDraft.sms || remindDraft.call) && !/^1\d{10}$/.test(panel.boundPhone)) {
+                    notify("请先验证手机号");
+                    return;
+                  }
+                  if (page.from === "doorbell") {
+                    save({ ...panel, phoneService: true, remind: remindDraft });
+                    notify("提醒方式已保存");
+                    back();
+                    return;
+                  }
+                  save({ ...panel, remind: remindDraft });
+                  notify("提醒方式已保存");
+                  open({ id: "notify" });
+                }}
+              >
+                下一步
+              </button>
             </div>
-            <p className="px-4 text-[13px] text-[#8e8e93]">消息推送支持多选</p>
-            <div className="mx-4 rounded-2xl bg-white px-4">
-              {([["center", "消息中心"], ["sms", "短信提醒"], ["call", "电话提醒"]] as const).map(([key, label]) => (
-                <div key={key} className="flex items-center justify-between border-b border-[#f2f3f5] py-3 last:border-b-0">
-                  <span>{label}</span>
-                  <Toggle label={label} on={panel.remind[key]} onClick={() => {
-                    if ((key === "sms" || key === "call") && !panel.remind[key]) { setDialog({ kind: "phone-use", key }); return; }
-                    save({ ...panel, remind: { ...panel.remind, [key]: !panel.remind[key] } });
-                  }} />
-                </div>
-              ))}
+            <p className="px-4 pb-3 text-[13px] text-[#9AA0A8]">消息推送支持多选</p>
+            <div className="mx-4 flex flex-col gap-3">
+              {([
+                ["center", "消息中心"],
+                ["sms", "短信提醒"],
+                ["call", "电话提醒"],
+              ] as const).map(([key, label]) => {
+                const on = remindDraft[key];
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      if (key === "center" || on) {
+                        setRemindDraft((current) => ({ ...current, [key]: !current[key] }));
+                        return;
+                      }
+                      setDialog({ kind: "phone-use", key });
+                    }}
+                    className="flex h-[72px] items-center gap-3 rounded-2xl bg-white px-4 text-left"
+                  >
+                    <RemindMark kind={key} />
+                    <span className="flex-1 text-[16px]">{label}</span>
+                    <span className={`grid size-[22px] place-items-center rounded-full border ${on ? "border-[#FF5A36] bg-[#FF5A36] text-white" : "border-[#D5D5D5] bg-white"}`}>
+                      {on ? <Check className="size-3.5" strokeWidth={3} /> : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <button type="button" onClick={() => open({ id: "bind" })} className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-white px-4">手机绑定<span>›</span></button>
           </section>
         ) : null}
 
         {page.id === "bind" ? (
-          <section className="bg-white">
-            <Bar title="手机绑定" onBack={back} />
-            <div className="mx-4">
-              <b>手机号码</b>
-              <input value={phone} inputMode="numeric" maxLength={11} onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))} placeholder="请输入手机号" className="mt-3 h-11 w-full rounded-xl bg-[#F7F8FA] px-3 outline-none" />
-              <button type="button" className="mt-4 h-11 w-full rounded-full bg-[#12c4a0] text-white" onClick={() => {
-                if (!/^1\d{10}$/.test(phone)) { notify("请输入 11 位手机号"); return; }
-                save({ ...panel, boundPhone: phone });
-                notify("手机号已保存在本机");
-                back();
-              }}>保存</button>
-              <p className="mt-3 text-[13px] text-[#8e8e93]">号码只保存在本机，不会发送短信。</p>
+          <section className="min-h-full bg-white">
+            <div className="flex h-12 items-center px-1">
+              <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
             </div>
+            <h1 className="px-6 pt-5 text-[28px] font-bold">手机绑定</h1>
+            <input
+              value={phone}
+              inputMode="numeric"
+              maxLength={11}
+              onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))}
+              placeholder="手机号码"
+              className="mx-6 mt-8 h-14 w-[calc(100%-3rem)] rounded-xl bg-[#F2F3F5] px-4 text-[16px] outline-none placeholder:text-[#C5C8CE]"
+            />
+            <button
+              type="button"
+              className={`mx-6 mt-5 h-12 w-[calc(100%-3rem)] rounded-xl text-[16px] text-white ${/^1\d{10}$/.test(phone) && bindWait === 0 ? "bg-[#FF8A78]" : "bg-[#F8D4C8]"}`}
+              onClick={sendBindCode}
+            >
+              {bindWait > 0 ? `${bindWait}s后重新获取` : "获取验证码"}
+            </button>
+            {bindSent ? (
+              <>
+                <input
+                  value={bindInput}
+                  inputMode="numeric"
+                  maxLength={6}
+                  onChange={(event) => setBindInput(event.target.value.replace(/\D/g, ""))}
+                  placeholder="请输入验证码"
+                  className="mx-6 mt-4 h-14 w-[calc(100%-3rem)] rounded-xl bg-[#F2F3F5] px-4 text-[16px] outline-none placeholder:text-[#C5C8CE]"
+                />
+                <button
+                  type="button"
+                  disabled={!bindInput}
+                  className={`mx-6 mt-4 h-12 w-[calc(100%-3rem)] rounded-xl text-[16px] text-white ${bindInput ? "bg-[#FF8A78]" : "bg-[#E4E4E4]"}`}
+                  onClick={() => {
+                    if (bindInput !== bindCode) {
+                      notify("验证码不正确");
+                      return;
+                    }
+                    save({ ...panel, boundPhone: phone });
+                    setRemindDraft((current) => ({ ...current, [page.channel]: true }));
+                    notify("手机号已验证");
+                    back();
+                  }}
+                >
+                  确认
+                </button>
+              </>
+            ) : null}
           </section>
         ) : null}
 
@@ -1334,11 +1457,26 @@ export function LockPanel({ device }: { device: Device }) {
           </div>
         </div>
       ) : null}
-      {dialog ? (
+      {dialog?.kind === "phone-use" ? (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/45 px-8">
+          <div className="w-full overflow-hidden rounded-2xl bg-white">
+            <div className="px-5 pb-5 pt-6">
+              <p className="text-center text-[17px] font-semibold">使用提醒</p>
+              <p className="mt-3 text-[14px] leading-6 text-[#333]">
+                我们在此收集您的电话号码仅为了为您提供{dialog.key === "call" ? "电话" : "短信"}提醒服务，不会将您的号码用于其他用途。（如果您不提供此信息，{dialog.key === "call" ? "电话" : "短信"}提醒功能将无法使用。）
+              </p>
+            </div>
+            <div className="grid grid-cols-2 border-t border-[#E8E8E8] text-[16px]">
+              <button type="button" className="h-12 border-r border-[#E8E8E8] text-[#A0A0A0]" onClick={() => setDialog(null)}>取消</button>
+              <button type="button" className="h-12 font-semibold" onClick={() => { if (dialog.key) startPhoneBind(dialog.key); }}>设置</button>
+            </div>
+          </div>
+        </div>
+      ) : dialog ? (
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/40 px-8">
           <div className="w-full rounded-2xl bg-white p-5">
             <p className="leading-6">
-              {dialog.kind === "phone-use" ? "我们在此收集您的电话号码仅为了为您提供短信或来电提醒，不会将号码用于其他用途。如果您不提供此信息，对应提醒将无法使用。" : dialog.kind === "delete-member" ? "删除后，该成员的指纹、密码和门卡会从这把演示门锁移除。" : "确定清除全部未读消息？此操作只影响本机演示记录。"}
+              {dialog.kind === "delete-member" ? "删除后，该成员的指纹、密码和门卡会从这把演示门锁移除。" : "确定清除全部未读消息？此操作只影响本机演示记录。"}
             </p>
             <div className="mt-4 flex gap-3">
               <button type="button" className="h-10 flex-1 rounded-full bg-[#F2F3F5]" onClick={() => setDialog(null)}>取消</button>
@@ -1349,17 +1487,40 @@ export function LockPanel({ device }: { device: Device }) {
                   notify("成员凭据已删除");
                 }
                 if (dialog.kind === "clear-unread") notify("未读已清除");
-                if (dialog.kind === "phone-use" && dialog.key) {
-                  save({ ...panel, remind: { ...panel.remind, [dialog.key]: true } });
-                  notify("已记下提醒方式");
-                }
                 setDialog(null);
-              }}>{dialog.kind === "delete-member" ? "删除" : dialog.kind === "phone-use" ? "设置" : "清除"}</button>
+              }}>{dialog.kind === "delete-member" ? "删除" : "清除"}</button>
             </div>
           </div>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RemindMark({ kind }: { kind: "center" | "sms" | "call" }) {
+  if (kind === "center") {
+    return (
+      <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+        <path d="M6 9.5h13.5A2.5 2.5 0 0 1 22 12v6.2a2.5 2.5 0 0 1-2.5 2.5H14l-3.6 3.1v-3.1H6A2.5 2.5 0 0 1 3.5 18.2V12A2.5 2.5 0 0 1 6 9.5Z" fill="#F6C445" />
+        <path d="M12.5 13.2H26a2.5 2.5 0 0 1 2.5 2.5v5.4A2.5 2.5 0 0 1 26 23.6h-1.2v2.8L21 23.6h-8.5a2.5 2.5 0 0 1-2.5-2.5v-5.4a2.5 2.5 0 0 1 2.5-2.5Z" fill="#F0B429" />
+        <circle cx="16.2" cy="18.4" r="1" fill="#fff" />
+        <circle cx="19.6" cy="18.4" r="1" fill="#fff" />
+        <circle cx="23" cy="18.4" r="1" fill="#fff" />
+      </svg>
+    );
+  }
+  if (kind === "sms") {
+    return (
+      <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+        <rect x="5" y="9" width="22" height="15" rx="2.5" fill="#2FCF8A" />
+        <path d="M6 10.5 16 18l10-7.5" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 32 32" className="size-8" aria-hidden>
+      <path d="M10.2 6.8h3.1l1.6 3.6-2 1.6a12 12 0 0 0 5.1 5.1l1.6-2 3.6 1.6v3.1c0 1.2-1 2.2-2.2 2.2C13.2 22 8 16.8 8 9c0-1.2 1-2.2 2.2-2.2Z" fill="#2FCF8A" />
+    </svg>
   );
 }
 
