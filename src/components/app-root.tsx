@@ -160,7 +160,7 @@ function Screen({
     case "pair":
       return <PairScreen productId={route.productId} />;
     case "device":
-      return <DeviceScreen id={route.id} />;
+      return <DeviceScreen id={route.id} focus={route.focus} />;
     case "device-settings":
       return <DeviceSettingsScreen id={route.id} />;
     case "device-info":

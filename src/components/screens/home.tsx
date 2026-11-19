@@ -18,7 +18,7 @@ import {
 import { DeviceGlyph } from "@/components/chrome";
 import { Switch } from "@/components/chrome";
 import { useApp } from "@/lib/app-state";
-import type { Device, Group } from "@/lib/model";
+import { lockPanelOf, type Device, type Group } from "@/lib/model";
 import { useNav, type TabId } from "@/lib/nav";
 import { MeScreen } from "@/components/screens/me";
 
@@ -134,6 +134,7 @@ function HomePane() {
   const visibleDevices = roomTab === "common" ? devices : devices.filter((device) => !device.roomId);
   const visibleGroups = roomTab === "common" ? groups : [];
   const lock = devices.find((device) => device.kind === "lock");
+  const familyNames = lock ? lockPanelOf(lock.lock).family.map((member) => member.name) : home.members;
 
   function togglePower(device: Device) {
     const on = !device.on;
@@ -158,6 +159,27 @@ function HomePane() {
         }
       />
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (lock) push({ name: "device", id: lock.id, focus: "members" });
+            else push({ name: "members", homeId: home.id });
+          }}
+          className="mt-1 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left"
+        >
+          <span className="flex -space-x-2">
+            {familyNames.slice(0, 3).map((name) => (
+              <span key={name} className="grid size-9 place-items-center rounded-full border-2 border-white bg-[#E8FBF3] text-[13px] font-medium text-[#12A37A]">
+                {name.slice(0, 1)}
+              </span>
+            ))}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-medium">家庭成员</span>
+            <span className="block truncate text-[12px] text-[#98A0AA]">{familyNames.join("、")}</span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-[#CCC]" />
+        </button>
         {devices.length === 0 && groups.length === 0 ? (
           <button type="button" onClick={() => push({ name: "calorie" })} className="mt-2 block w-full overflow-hidden rounded-2xl bg-gradient-to-r from-[#FFE7C2] via-[#FFF6EA] to-[#F7D7C4] px-4 py-4 text-left">
             <p className="text-[20px] font-semibold text-[#5C3418]">拍一拍，热量就清楚</p>

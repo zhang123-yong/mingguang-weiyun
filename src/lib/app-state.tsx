@@ -55,7 +55,7 @@ type AppStateValue = {
   pushLog: (id: string, text: string) => void;
   addShare: (id: string, phone: string) => void;
   removeShare: (id: string, phone: string) => void;
-  addLockUser: (id: string, name: string, method: string) => void;
+  addLockUser: (id: string, name: string, method: string, memberId?: string) => void;
   removeLockUser: (id: string, userId: string) => void;
   addTempCode: (id: string) => string;
   addGroup: (homeId: string, name: string, deviceIds: string[]) => void;
@@ -308,12 +308,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             : device,
         ),
       })),
-    addLockUser: (id, name, method) =>
+    addLockUser: (id, name, method, memberId) =>
       update((current) => ({
         ...current,
         devices: current.devices.map((device) =>
           device.id === id
-            ? { ...device, lockUsers: [...device.lockUsers, { id: rid(), name, method }] }
+            ? { ...device, lockUsers: [...device.lockUsers, { id: rid(), name, method, memberId }] }
             : device,
         ),
       })),

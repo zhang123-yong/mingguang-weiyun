@@ -1110,7 +1110,7 @@ const LOCK_NOTICES = [
   { title: "录像", body: "今天 18:02 有一段门口录像", count: 1 },
 ];
 
-export function DeviceScreen({ id }: { id: string }) {
+export function DeviceScreen({ id, focus }: { id: string; focus?: "members" }) {
   const device = useDevice(id);
   const { patchDevice, pushLog } = useApp();
   const { pop, push, notify } = useNav();
@@ -1119,7 +1119,7 @@ export function DeviceScreen({ id }: { id: string }) {
   if (!device) return <Page title="设备" onBack={pop}><p>设备已移除。</p></Page>;
 
   if (device.kind === "lock") {
-    return <LockPanel device={device} />;
+    return <LockPanel device={device} start={focus} />;
   }
 
   const homeName = device.on ? "在线" : "已关闭";
