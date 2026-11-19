@@ -21,7 +21,7 @@ import {
 import { useApp } from "@/lib/app-state";
 import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState } from "@/lib/model";
 import { useNav } from "@/lib/nav";
-import { LockAlbum } from "@/components/screens/lock-album";
+import { LockAlbum, lockPreviewText } from "@/components/screens/lock-album";
 
 const FAQS: [string, string][] = [
   ["门锁屏不亮了，怎么办？", "先换一组新的干电池，并确认锂电池有电。长按后面板复位键 5 秒后重新上电。演示环境不会连接真实门锁。"],
@@ -193,7 +193,7 @@ export function LockPanel({ device }: { device: Device }) {
     {
       key: "album",
       title: "相册/日志",
-      body: latest ? `${clock}${latest.text}` : "暂无记录",
+      body: latest ? `${clock}${lockPreviewText(latest.text)}` : "暂无记录",
       count: device.logs.length,
       icon: "list" as const,
       go: () => open({ id: "album" }),

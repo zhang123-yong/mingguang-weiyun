@@ -63,8 +63,13 @@ function classify(text: string): Pick<Row, "event" | "bucket" | "mine"> | null {
   return null;
 }
 
+export function lockPreviewText(text: string) {
+  const kind = classify(text);
+  return kind?.event === "远程解锁" || kind?.event === "远程关锁" ? kind.event : text;
+}
+
 function messageOf(row: Row) {
-  return row.event === "远程解锁" || row.event === "远程关锁" ? row.event : row.title;
+  return lockPreviewText(row.title);
 }
 
 function yesterdayKey() {
