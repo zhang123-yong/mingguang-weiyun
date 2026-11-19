@@ -36,6 +36,7 @@ import {
   TextInput,
   Cell,
 } from "@/components/chrome";
+import { LockPanel } from "@/components/screens/lock-panel";
 import { useApp } from "@/lib/app-state";
 import {
   CATEGORIES,
@@ -1118,7 +1119,7 @@ export function DeviceScreen({ id }: { id: string }) {
   if (!device) return <Page title="设备" onBack={pop}><p>设备已移除。</p></Page>;
 
   if (device.kind === "lock") {
-    return <VisualLockScreen device={device} />;
+    return <LockPanel device={device} />;
   }
 
   const homeName = device.on ? "在线" : "已关闭";

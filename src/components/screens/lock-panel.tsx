@@ -1,0 +1,599 @@
+"use client";
+
+import { useRef, useState, type ReactNode } from "react";
+import { useApp } from "@/lib/app-state";
+import { nowLabel, lockPanelOf, rid, type Device, type LockPanelState } from "@/lib/model";
+import { useNav } from "@/lib/nav";
+
+const FAQS: [string, string][] = [
+  ["门锁屏不亮了，怎么办？", "先换一组新的干电池，并确认锂电池有电。长按后面板复位键 5 秒后重新上电。演示环境不会连接真实门锁。"],
+  ["什么是 AI 安全守护？", "有人在门前停留、逗留或移动时，门锁可以把事件记到消息中心。这里只演示开关和文案，不会上传视频。"],
+  ["什么是门锁逗留（斗牛）报警？", "有人在门前停留超过设定时间，会记一条逗留告警。可以在通知设置里选择消息中心或电话提醒。"],
+  ["门锁能否与智能音箱、灯光、空调联动？", "可以在智能联动里打开家人回家、门锁告警、有人按门铃。联动只改本机演示状态，不会控制真实设备。"],
+  ["什么是 AI 视觉？", "人脸识别和包裹识别会出现在门锁 AI 的视觉页。当前是即将上线的演示卡片，不会分析真实画面。"],
+];
+
+const MENU: [string, string, string, string, "inbox" | "live" | "ai" | "members" | "temp" | "link" | "settings"][] = [
+  ["#12c4a0", "铃", "通知", "本地录像会丢失？云存可长期保存", "inbox"],
+  ["#2f9bff", "视", "视频监控", "", "live"],
+  ["#7a5cff", "AI", "AI", "", "ai"],
+  ["#22b07d", "人", "成员管理", "", "members"],
+  ["#f0a202", "密", "临时密码", "", "temp"],
+  ["#ff7a1a", "联", "智能联动", "", "link"],
+  ["#8e8e93", "设", "设置", "", "settings"],
+];
+
+type Page =
+  | { id: "home" }
+  | { id: "inbox" }
+  | { id: "live" }
+  | { id: "ai" }
+  | { id: "members" }
+  | { id: "enroll"; type: string }
+  | { id: "temp" }
+  | { id: "link" }
+  | { id: "settings" }
+  | { id: "services" }
+  | { id: "redeem" }
+  | { id: "voice" }
+  | { id: "camera" }
+  | { id: "editor" }
+  | { id: "remind" }
+  | { id: "bind" }
+  | { id: "notify" }
+  | { id: "dnd" }
+  | { id: "help"; faq?: number }
+  | { id: "album" };
+
+type Dialog = { kind: "phone-use" | "delete-member" | "clear-unread"; key?: "sms" | "call" } | null;
+
+function Toggle({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className={`relative h-7 w-12 shrink-0 rounded-full ${on ? "bg-[#12c4a0]" : "bg-[#E5E5EA]"}`}
+    >
+      <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow ${on ? "left-[22px]" : "left-0.5"}`} />
+    </button>
+  );
+}
+
+function Bar({ title, onBack, extra }: { title: string; onBack: () => void; extra?: ReactNode }) {
+  return (
+    <div className="flex h-12 items-center px-1">
+      <button type="button" aria-label="返回" onClick={onBack} className="grid size-10 place-items-center text-[28px] leading-none">
+        ‹
+      </button>
+      <h2 className="flex-1 text-center text-[17px] font-semibold">{title}</h2>
+      <div className="flex min-w-10 justify-end pr-2">{extra}</div>
+    </div>
+  );
+}
+
+export function LockPanel({ device }: { device: Device }) {
+  const { patchDevice, pushLog, addLockUser } = useApp();
+  const { pop, notify } = useNav();
+  const panel = lockPanelOf(device.lock);
+  const [stack, setStack] = useState<Page[]>([{ id: "home" }]);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [query, setQuery] = useState("");
+  const [aiTab, setAiTab] = useState<"voice" | "vision" | "more">("voice");
+  const [beta, setBeta] = useState(true);
+  const [redeem, setRedeem] = useState("");
+  const [voice, setVoice] = useState("");
+  const [voice2, setVoice2] = useState("");
+  const [linkIf, setLinkIf] = useState("");
+  const [linkThen, setLinkThen] = useState("");
+  const [linkName, setLinkName] = useState("");
+  const [phone, setPhone] = useState(panel.boundPhone);
+  const [loading, setLoading] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [talkOk, setTalkOk] = useState(false);
+  const page = stack[stack.length - 1] ?? { id: "home" as const };
+  const hold = useRef<number | null>(null);
+  const fired = useRef(false);
+
+  function save(next: LockPanelState, log?: string) {
+    patchDevice(device.id, { lock: next });
+    if (log) pushLog(device.id, log);
+  }
+
+  function open(next: Page) {
+    if (next.id === "live") {
+      setConnecting(true);
+      setTalkOk(false);
+      window.setTimeout(() => setConnecting(false), 1100);
+    }
+    setDialog(null);
+    setStack((current) => [...current, next]);
+  }
+
+  function back() {
+    setDialog(null);
+    if (stack.length > 1) setStack((current) => current.slice(0, -1));
+    else pop();
+  }
+
+  function holdProps(hint: string, fire: () => void) {
+    return {
+      onPointerDown: () => {
+        fired.current = false;
+        if (hold.current) window.clearTimeout(hold.current);
+        hold.current = window.setTimeout(() => {
+          fired.current = true;
+          fire();
+        }, 650);
+      },
+      onPointerUp: () => {
+        if (hold.current) window.clearTimeout(hold.current);
+        if (!fired.current) notify(hint);
+      },
+      onPointerCancel: () => {
+        if (hold.current) window.clearTimeout(hold.current);
+      },
+    };
+  }
+
+  function unlock() {
+    if (!panel.remoteUnlock) {
+      notify("远程开锁已关闭");
+      return;
+    }
+    patchDevice(device.id, { locked: false });
+    pushLog(device.id, "长按开锁");
+    notify("已开锁");
+  }
+
+  const unlocked = !device.locked;
+
+  return (
+    <div className="relative flex h-full flex-col bg-[#F7F8FA] text-[#222]">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {page.id === "home" ? (
+          <section className="min-h-full bg-white">
+            <Bar title={device.name || "可视智能门锁"} onBack={back} />
+            <div className="flex justify-center pt-4">
+              <button
+                type="button"
+                aria-label="长按开锁"
+                {...holdProps("请长按开锁", unlock)}
+                className="relative grid size-[168px] place-items-center rounded-full text-[#12a888] active:scale-[0.97]"
+                style={{ background: "conic-gradient(#12c4a0 0 280deg, #d9f7ef 280deg 360deg)" }}
+              >
+                <span className="absolute inset-[14px] rounded-full bg-white" />
+                <span className="relative grid place-items-center">
+                  <svg viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <rect x="6" y="10" width="12" height="9" rx="2" />
+                    <path d="M8 10V8a4 4 0 0 1 8 0v2" />
+                  </svg>
+                  <span className="text-[13px] font-semibold">{unlocked ? "已开锁" : "长按开锁"}</span>
+                </span>
+              </button>
+            </div>
+            <p className="mt-3 mb-4 text-center text-[13px] text-[#8e8e93]">电池电量：{device.battery}%</p>
+            <div className="px-4">
+              {MENU.map(([color, mark, name, desc, id]) => (
+                <button key={name} type="button" onClick={() => open({ id })} className="flex w-full items-center gap-3 py-3.5 text-left">
+                  <i className="grid size-7 place-items-center rounded-full text-[13px] text-white not-italic" style={{ background: color }}>
+                    {mark}
+                  </i>
+                  <span>
+                    <b className="block text-[16px] font-semibold">{name}</b>
+                    {desc ? <small className="text-[12px] text-[#8e8e93]">{desc}</small> : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "live" ? (
+          <section className="flex min-h-full flex-col bg-black text-white">
+            <div className="flex h-12 items-center justify-between px-2">
+              <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
+              <button type="button" className="px-3 text-[15px]" onClick={() => {
+                const order = ["高清", "标清", "超清"];
+                const next = order[(order.indexOf(panel.clarity) + 1) % order.length] ?? "高清";
+                save({ ...panel, clarity: next });
+              }}>{panel.clarity}</button>
+            </div>
+            <div className="relative flex flex-1 items-center justify-center bg-[#1c2430]">
+              <div className="h-40 w-56 rounded-2xl bg-[#2c3848]" />
+              {talkOk ? <div className="absolute top-6 rounded-full bg-black/60 px-4 py-1 text-[13px]">已成功</div> : null}
+              {connecting ? <div className="absolute inset-0 grid place-items-center bg-black/55 text-[15px]">正在构建加密通道</div> : null}
+            </div>
+            <div className="grid grid-cols-5 gap-1 px-2 py-4 text-center text-[11px]">
+              <button type="button" onClick={() => { save({ ...panel, muted: !panel.muted }); notify(panel.muted ? "已恢复原声" : "已静音"); }}>
+                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">{panel.muted ? "静" : "声"}</i>
+                {panel.muted ? "已静音" : "原声"}
+              </button>
+              <button type="button" onClick={() => {
+                const recording = !panel.recording;
+                const album = recording ? panel.album : [{ id: rid(), time: nowLabel() }, ...panel.album].slice(0, 8);
+                save({ ...panel, recording, album }, recording ? undefined : "录像已保存至本地相册");
+                notify(recording ? "开始录像" : "录像已保存至本地相册");
+              }}>
+                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">录</i>
+                {panel.recording ? "停止" : "录像"}
+              </button>
+              <button type="button" {...holdProps("请长按对讲", () => { setTalkOk(true); pushLog(device.id, "对讲成功"); notify("已成功"); })}>
+                <i className="mx-auto grid size-10 place-items-center rounded-full bg-[#12c4a0] not-italic">话</i>
+                长按对讲
+              </button>
+              <button type="button" onClick={() => open({ id: "album" })}>
+                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">册</i>
+                相册
+              </button>
+              <button type="button" {...holdProps("请长按开锁", unlock)}>
+                <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">锁</i>
+                {unlocked ? "已开锁" : "长按开锁"}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "ai" ? (
+          <section>
+            <Bar title="门锁 AI" onBack={back} />
+            {beta ? (
+              <div className="mx-4 flex items-center justify-between rounded-xl bg-[#243044] px-3 py-2 text-[13px] text-white">
+                <span>Beta 标记的功能处于试用阶段，AI 会继续学习。</span>
+                <button type="button" aria-label="关闭" onClick={() => setBeta(false)} className="px-2">×</button>
+              </div>
+            ) : null}
+            <div className="mx-4 mt-3 h-28 rounded-2xl bg-gradient-to-b from-[#d9f7ef] to-white" />
+            <div className="mt-3 flex justify-around text-[14px]">
+              {(["voice", "vision", "more"] as const).map((id) => (
+                <button key={id} type="button" onClick={() => setAiTab(id)} className={aiTab === id ? "font-semibold text-[#12a888]" : "text-[#8e8e93]"}>
+                  {id === "voice" ? "AI×语音" : id === "vision" ? "AI×视觉" : "AI×更多"}
+                </button>
+              ))}
+            </div>
+            {aiTab === "voice" ? (
+              <div className="mx-4 mt-4 rounded-2xl bg-white p-4">
+                <span className="rounded bg-[#ff7a1a] px-1.5 py-0.5 text-[11px] text-white">NEW</span>
+                <p className="mt-2">一大波 AI 能力即将上线，敬请期待</p>
+                <button type="button" onClick={() => open({ id: "help" })} className="mt-4 h-11 w-full rounded-full bg-[#2f9bff] text-white">服务中心</button>
+              </div>
+            ) : null}
+            {aiTab === "vision" ? (
+              <div className="mx-4 mt-4 flex flex-col gap-3">
+                <div className="rounded-2xl bg-white p-4"><b>人脸识别</b><p className="mt-1 text-[13px] text-[#8e8e93]">识别熟悉的家人。演示不会采集真实人脸。</p></div>
+                <div className="rounded-2xl bg-white p-4"><b>包裹识别</b><p className="mt-1 text-[13px] text-[#8e8e93]">门前出现包裹时记一条消息。演示不会分析真实画面。</p></div>
+              </div>
+            ) : null}
+            {aiTab === "more" ? (
+              <div className="mx-4 mt-4 rounded-2xl bg-white px-4">
+                <button type="button" onClick={() => open({ id: "services" })} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">精选服务<span>›</span></button>
+                <button type="button" onClick={() => open({ id: "redeem" })} className="flex w-full items-center justify-between py-4">兑换中心<span>›</span></button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {page.id === "members" ? (
+          <section>
+            <Bar title="成员管理" onBack={back} extra={<button type="button" aria-label="设置" onClick={() => open({ id: "settings" })}>⚙</button>} />
+            <div className="mx-4 rounded-2xl bg-white px-4 py-3">
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索成员" className="h-10 w-full bg-transparent outline-none" />
+            </div>
+            {!query.trim() || panel.admin.includes(query.trim()) ? (
+              <div className="mx-4 mt-3 rounded-2xl bg-white px-4">
+                <div className="border-b border-[#f2f3f5] py-3"><b>{panel.admin}</b><small className="ml-2 text-[#8e8e93]">管理员</small></div>
+                {["指纹", "密码", "门卡", "人脸识别"].map((type) => {
+                  const count = device.lockUsers.filter((user) => user.method === type).length;
+                  return (
+                    <button key={type} type="button" onClick={() => open({ id: "enroll", type })} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4 last:border-b-0">
+                      <span>{type}</span><span className="text-[#8e8e93]">{count ? `${count} 枚` : "添加"} ›</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : <div className="mx-4 mt-3 rounded-2xl bg-white p-4 text-[#8e8e93]">没有匹配的成员</div>}
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">其他成员</p>
+            <div className="mx-4 rounded-2xl bg-white p-4 text-[#8e8e93]">还没有其他成员</div>
+            <button type="button" onClick={() => setDialog({ kind: "delete-member" })} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full border border-[#f3d2cc] bg-white text-[#e25b4a]">删除成员</button>
+          </section>
+        ) : null}
+
+        {page.id === "enroll" ? (
+          <section className="bg-white">
+            <Bar title={page.type === "指纹" ? "如何添加指纹" : page.type === "人脸识别" ? "如何添加人脸识别" : page.type === "密码" ? "如何添加密码" : "如何添加门卡"} onBack={back} />
+            <div className="mx-4 rounded-2xl bg-[#F7F8FA] p-4 leading-6">
+              {page.type === "指纹" ? "将手指放在锁的指纹区，按提示抬起再按下，直到提示成功。" : page.type === "人脸识别" ? "正对门锁摄像头，按开始后在锁前停留，直到提示录入成功。" : page.type === "密码" ? "在锁的键盘上输入 6 位数字，再输入一次确认。" : "将门卡放在图示感应区域，直到听到录入成功。若出现其他提示，则添加失败。"}
+            </div>
+            <button type="button" className="mx-4 mt-6 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white" onClick={() => {
+              addLockUser(device.id, `${page.type}${device.lockUsers.length + 1}`, page.type);
+              pushLog(device.id, `${page.type}添加成功`);
+              notify("添加成功");
+              back();
+            }}>开始添加</button>
+          </section>
+        ) : null}
+
+        {page.id === "temp" ? (
+          <section>
+            <Bar title="临时密码" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white p-4">
+              <div className="flex items-center justify-between"><span>当前密码</span><b>{panel.tempPass || "未生成"}</b></div>
+              <p className="mt-2 text-[13px] text-[#8e8e93]">{panel.tempPass ? `${panel.tempHours} 小时内有效。只在这台浏览器里保存。` : "生成后可在门锁键盘上使用。不会发给真实访客。"}</p>
+              {[2, 24].map((hours) => (
+                <button key={hours} type="button" className={`mt-3 h-11 w-full rounded-full ${hours === 2 ? "bg-[#12c4a0] text-white" : "bg-[#e8faf5] text-[#12987a]"}`} onClick={() => {
+                  const code = String(100000 + Math.floor(Math.random() * 900000));
+                  save({ ...panel, tempHours: hours, tempPass: code }, `临时密码 ${code}`);
+                  notify(`临时密码 ${code}`);
+                }}>生成 {hours} 小时密码</button>
+              ))}
+              {panel.tempPass ? <button type="button" className="mt-3 h-11 w-full rounded-full bg-[#F2F3F5]" onClick={() => { save({ ...panel, tempPass: "" }, "临时密码已删除"); }}>删除临时密码</button> : null}
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "link" ? (
+          <section>
+            <Bar title="智能联动" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              {panel.links.map((item) => (
+                <div key={item.id} className="flex items-center justify-between border-b border-[#f2f3f5] py-3 last:border-b-0">
+                  <span><b className="block">{item.name}</b><small className="text-[12px] text-[#8e8e93]">{item.desc}</small></span>
+                  <Toggle label={item.name} on={item.on} onClick={() => {
+                    const links = panel.links.map((link) => link.id === item.id ? { ...link, on: !link.on } : link);
+                    save({ ...panel, links }, `${item.name}${item.on ? "已关闭" : "已打开"}`);
+                    setLoading(true);
+                    window.setTimeout(() => setLoading(false), 700);
+                  }} />
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => open({ id: "editor" })} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white">自定义联动类型</button>
+            <button type="button" onClick={() => open({ id: "remind" })} className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-white px-4">选择提醒方式<span>›</span></button>
+            {loading ? <p className="mt-4 text-center text-[13px] text-[#8e8e93]">加载中…</p> : null}
+          </section>
+        ) : null}
+
+        {page.id === "editor" ? (
+          <section>
+            <Bar title="编辑" onBack={back} />
+            <div className="mx-4 flex flex-col gap-2 rounded-2xl bg-white p-4">
+              <b>如果</b>
+              <input value={linkIf} onChange={(event) => setLinkIf(event.target.value)} placeholder="例如 门锁告警" className="h-11 rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+              <b>执行</b>
+              <input value={linkThen} onChange={(event) => setLinkThen(event.target.value)} placeholder="例如 打开玄关灯" className="h-11 rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+              <b>名称</b>
+              <input value={linkName} onChange={(event) => setLinkName(event.target.value)} placeholder="自定义" className="h-11 rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+            </div>
+            <button type="button" className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white" onClick={() => {
+              const name = linkName.trim() || "自定义联动";
+              save({ ...panel, links: [...panel.links, { id: rid(), name, desc: `${linkIf.trim() || "条件"} → ${linkThen.trim() || "动作"}`, on: true }] });
+              setLinkIf(""); setLinkThen(""); setLinkName("");
+              notify("已保存联动");
+              back();
+            }}>保存</button>
+          </section>
+        ) : null}
+
+        {page.id === "settings" ? (
+          <section>
+            <Bar title="设置" onBack={back} />
+            <div className="mx-4 grid grid-cols-2 gap-3 rounded-2xl bg-white p-4 text-center">
+              <button type="button" onClick={() => open({ id: "services" })}><i className="mx-auto grid size-12 place-items-center rounded-full bg-[#2f9bff] text-white not-italic">云</i>云存储服务</button>
+              <button type="button" onClick={() => open({ id: "ai" })}><i className="mx-auto grid size-12 place-items-center rounded-full bg-[#12c4a0] text-white not-italic">AI</i>AI设置</button>
+            </div>
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">通用设置</p>
+            <button type="button" onClick={() => open({ id: "camera" })} className="mx-4 flex h-14 w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-white px-4">摄像头设置<span>›</span></button>
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">开锁设置</p>
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>远程开锁</span><Toggle label="远程开锁" on={panel.remoteUnlock} onClick={() => save({ ...panel, remoteUnlock: !panel.remoteUnlock })} /></div>
+              <button type="button" onClick={() => notify("仅管理员可以使用远程开锁")} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">权限设置<span className="text-[13px] text-[#8e8e93]">仅管理员可以使用 ›</span></button>
+              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3">
+                <span>语音密码<small className="block text-[12px] text-[#8e8e93]">语音音箱喊密码开门需要验证此密码</small></span>
+                <Toggle label="语音密码" on={panel.voiceOn} onClick={() => {
+                  if (!panel.voiceOn) { setVoice(""); setVoice2(""); open({ id: "voice" }); return; }
+                  save({ ...panel, voiceOn: false, voicePin: "" });
+                  notify("已关闭语音密码");
+                }} />
+              </div>
+              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>手势密码</span><Toggle label="手势密码" on={panel.wrist} onClick={() => save({ ...panel, wrist: !panel.wrist })} /></div>
+              <div className="flex items-center justify-between py-3"><span>门铃按键电话通知服务</span><Toggle label="门铃电话通知" on={panel.phoneService} onClick={() => save({ ...panel, phoneService: !panel.phoneService })} /></div>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "voice" ? (
+          <section className="bg-white">
+            <Bar title="设置语音密码" onBack={back} />
+            <div className="mx-4 flex flex-col gap-3">
+              <b>请输入 4-6 位数字密码</b>
+              <p className="text-[13px] text-[#8e8e93]">语音音箱喊开门需要验证此密码</p>
+              <input value={voice} inputMode="numeric" maxLength={6} onChange={(event) => setVoice(event.target.value.replace(/\D/g, ""))} placeholder="请输入" className="h-11 rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+              <input value={voice2} inputMode="numeric" maxLength={6} onChange={(event) => setVoice2(event.target.value.replace(/\D/g, ""))} placeholder="请再次输入" className="h-11 rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+              <button type="button" className="h-11 rounded-full bg-[#12c4a0] text-white" onClick={() => {
+                if (!/^\d{4,6}$/.test(voice) || voice !== voice2) { notify("请输入一致的 4-6 位数字"); return; }
+                save({ ...panel, voicePin: voice, voiceOn: true }, "已设置语音密码");
+                notify("语音密码已保存");
+                back();
+              }}>完成</button>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "camera" ? (
+          <section>
+            <Bar title="摄像头设置" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>夜视</span><Toggle label="夜视" on={panel.night} onClick={() => save({ ...panel, night: !panel.night })} /></div>
+              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>宽动态</span><Toggle label="宽动态" on={panel.wdr} onClick={() => save({ ...panel, wdr: !panel.wdr })} /></div>
+              <button type="button" onClick={() => open({ id: "live" })} className="flex w-full items-center justify-between py-4">查看实时画面<span>›</span></button>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "services" ? (
+          <section>
+            <Bar title="精选服务" onBack={back} />
+            <div className="mx-4 flex items-center gap-3 rounded-2xl bg-white p-4"><i className="grid size-10 place-items-center rounded-full bg-[#243044] text-white not-italic">锁</i><span><small className="block text-[#8e8e93]">当前设备</small><b>可视智能门锁</b></span></div>
+            <div className="mx-4 mt-3 rounded-2xl bg-white p-4">
+              {[["7天智能云存储 · 年", "199.99", "365"], ["7天智能云存储 · 月", "18.99", "30"], ["30天智能云存储 · 年", "279.99", "365"], ["30天智能云存储 · 月", "26.99", "30"]].map(([name, price, days]) => (
+                <div key={name} className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span><b className="block">{name}</b><small className="text-[12px] text-[#8e8e93]">{days} 天演示套餐，不会扣费</small></span><span className="text-[#e25b4a]">¥{price}</span></div>
+              ))}
+              <button type="button" onClick={() => open({ id: "redeem" })} className="flex w-full items-center justify-between py-4">更多功能 · 兑换中心<span>›</span></button>
+            </div>
+            <button type="button" onClick={() => notify("演示环境不会扣费，也没有开通云存储")} className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white">立即开通</button>
+            <p className="mt-3 text-center text-[12px] text-[#8e8e93]">演示价格仅供界面对照，不能付款。</p>
+          </section>
+        ) : null}
+
+        {page.id === "redeem" ? (
+          <section className="min-h-full bg-[#2a2438] text-white">
+            <Bar title="兑换中心" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white p-4 text-[#222]">
+              <b>输入兑换码兑换</b>
+              <input value={redeem} onChange={(event) => setRedeem(event.target.value)} placeholder="请输入兑换码" className="mt-3 h-11 w-full rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+              <button type="button" className="mt-3 h-11 w-full rounded-full bg-[#12c4a0] text-white" onClick={() => {
+                if (redeem.trim().toUpperCase() !== "MINGGUANG") { notify("兑换码无效，可试 MINGGUANG"); return; }
+                setRedeem("");
+                notify("兑换成功，权益只记在本机");
+              }}>立即兑换</button>
+              <p className="mt-4"><b>兑换须知</b></p>
+              <p className="mt-1 text-[13px] leading-6 text-[#8e8e93]">1. 请核对数字和字母。<br />2. 连续输错 5 次后需要稍后再试。<br />3. 兑换码不含大写 G、I、O。<br />4. 过期兑换码无效。演示码是 MINGGUANG。</p>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "remind" ? (
+          <section>
+            <div className="flex h-12 items-center px-1">
+              <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
+              <h2 className="flex-1 text-center text-[17px] font-semibold">选择提醒方式</h2>
+              <button type="button" className="pr-3 text-[#ff7a1a]" onClick={() => { notify("提醒方式已保存"); open({ id: "notify" }); }}>下一步</button>
+            </div>
+            <p className="px-4 text-[13px] text-[#8e8e93]">消息推送支持多选</p>
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              {([["center", "消息中心"], ["sms", "短信提醒"], ["call", "电话提醒"]] as const).map(([key, label]) => (
+                <div key={key} className="flex items-center justify-between border-b border-[#f2f3f5] py-3 last:border-b-0">
+                  <span>{label}</span>
+                  <Toggle label={label} on={panel.remind[key]} onClick={() => {
+                    if ((key === "sms" || key === "call") && !panel.remind[key]) { setDialog({ kind: "phone-use", key }); return; }
+                    save({ ...panel, remind: { ...panel.remind, [key]: !panel.remind[key] } });
+                  }} />
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => open({ id: "bind" })} className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-white px-4">手机绑定<span>›</span></button>
+          </section>
+        ) : null}
+
+        {page.id === "bind" ? (
+          <section className="bg-white">
+            <Bar title="手机绑定" onBack={back} />
+            <div className="mx-4">
+              <b>手机号码</b>
+              <input value={phone} inputMode="numeric" maxLength={11} onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))} placeholder="请输入手机号" className="mt-3 h-11 w-full rounded-xl bg-[#F7F8FA] px-3 outline-none" />
+              <button type="button" className="mt-4 h-11 w-full rounded-full bg-[#12c4a0] text-white" onClick={() => {
+                if (!/^1\d{10}$/.test(phone)) { notify("请输入 11 位手机号"); return; }
+                save({ ...panel, boundPhone: phone });
+                notify("手机号已保存在本机");
+                back();
+              }}>保存</button>
+              <p className="mt-3 text-[13px] text-[#8e8e93]">号码只保存在本机，不会发送短信。</p>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "inbox" ? (
+          <section>
+            <Bar title="消息中心" onBack={back} extra={<button type="button" className="text-[14px]" onClick={() => setDialog({ kind: "clear-unread" })}>清除未读</button>} />
+            <div className="mx-4 rounded-2xl bg-white p-4"><b>设备消息</b><p className="text-[13px] text-[#8e8e93]">{device.name}</p></div>
+            <div className="mx-4 mt-3 rounded-2xl bg-white px-4">
+              {device.logs.length ? device.logs.slice(0, 6).map((item) => (
+                <div key={item.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>{item.text}</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{item.time}</small></div>
+              )) : <p className="py-4 text-[#8e8e93]">还没有门锁消息。开锁、告警和对讲会记在这里。</p>}
+            </div>
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">AI 消息提醒</p>
+            <div className="mx-4 flex items-center justify-between rounded-2xl bg-white px-4 py-3"><span>逗留与包裹提醒</span><Toggle label="逗留与包裹提醒" on={panel.aiNotify} onClick={() => save({ ...panel, aiNotify: !panel.aiNotify })} /></div>
+          </section>
+        ) : null}
+
+        {page.id === "notify" ? (
+          <section>
+            <Bar title="通知设置" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              <b className="block py-3">可视智能门锁</b>
+              <div className="flex items-center justify-between border-t border-[#f2f3f5] py-3"><span>告警</span><Toggle label="告警" on={panel.notifyLock} onClick={() => save({ ...panel, notifyLock: !panel.notifyLock })} /></div>
+              <div className="flex items-center justify-between border-t border-[#f2f3f5] py-3"><span>电话</span><Toggle label="电话" on={panel.notifyCall} onClick={() => save({ ...panel, notifyCall: !panel.notifyCall })} /></div>
+            </div>
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">移动侦测</p>
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              <button type="button" onClick={() => open({ id: "dnd" })} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">移动侦测栏<span>›</span></button>
+              <div className="flex items-center justify-between py-3"><span>消息中心</span><Toggle label="消息中心" on={panel.aiNotify} onClick={() => save({ ...panel, aiNotify: !panel.aiNotify })} /></div>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "dnd" ? (
+          <section>
+            <Bar title="移动侦测栏" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white p-4">
+              <p>有人逗留、移动侦测等事件可以先记在消息中心，再决定要不要提醒。</p>
+              <div className="mt-3 flex items-center justify-between"><span>勿扰</span><Toggle label="勿扰" on={panel.dnd} onClick={() => save({ ...panel, dnd: !panel.dnd })} /></div>
+            </div>
+            <button type="button" className="mx-4 mt-4 h-11 w-[calc(100%-2rem)] rounded-full bg-[#12c4a0] text-white" onClick={() => { notify(panel.dnd ? "已开启勿扰" : "设置已保存"); back(); }}>保存设置</button>
+          </section>
+        ) : null}
+
+        {page.id === "album" ? (
+          <section>
+            <Bar title="相册" onBack={back} />
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              {panel.album.length ? panel.album.map((clip) => (
+                <div key={clip.id} className="border-b border-[#f2f3f5] py-3 last:border-b-0"><b>本地录像</b><small className="mt-1 block text-[12px] text-[#8e8e93]">{clip.time} 已保存在本机，不会上传</small></div>
+              )) : <p className="py-4 text-[#8e8e93]">还没有录像。在实时画面里点录像，停止后会出现在这里。</p>}
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "help" ? (
+          <section className="bg-white">
+            <Bar title={page.faq == null ? "服务中心" : "帮助"} onBack={back} />
+            {page.faq == null ? FAQS.map((item, index) => (
+              <button key={item[0]} type="button" onClick={() => open({ id: "help", faq: index })} className="mx-4 mb-3 block w-[calc(100%-2rem)] rounded-2xl bg-[#F7F8FA] p-4 text-left"><b>{item[0]}</b></button>
+            )) : (
+              <div className="mx-4 rounded-2xl bg-[#F7F8FA] p-4">
+                <b>{FAQS[page.faq]?.[0]}</b>
+                <p className="mt-2 leading-6">{FAQS[page.faq]?.[1]}</p>
+                <button type="button" onClick={() => notify("谢谢反馈，只记在本机")} className="mt-4 h-11 w-full rounded-full bg-[#eefaf6] text-[#12987a]">有帮助</button>
+              </div>
+            )}
+          </section>
+        ) : null}
+      </div>
+      {dialog ? (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-black/40 px-8">
+          <div className="w-full rounded-2xl bg-white p-5">
+            <p className="leading-6">
+              {dialog.kind === "phone-use" ? "我们在此收集您的电话号码仅为了为您提供短信或来电提醒，不会将号码用于其他用途。如果您不提供此信息，对应提醒将无法使用。" : dialog.kind === "delete-member" ? "删除后，该成员的指纹、密码和门卡会从这把演示门锁移除。" : "确定清除全部未读消息？此操作只影响本机演示记录。"}
+            </p>
+            <div className="mt-4 flex gap-3">
+              <button type="button" className="h-10 flex-1 rounded-full bg-[#F2F3F5]" onClick={() => setDialog(null)}>取消</button>
+              <button type="button" className="h-10 flex-1 rounded-full bg-[#12c4a0] text-white" onClick={() => {
+                if (dialog.kind === "delete-member") {
+                  patchDevice(device.id, { lockUsers: [] });
+                  pushLog(device.id, "已删除成员凭据");
+                  notify("成员凭据已删除");
+                }
+                if (dialog.kind === "clear-unread") notify("未读已清除");
+                if (dialog.kind === "phone-use" && dialog.key) {
+                  save({ ...panel, remind: { ...panel.remind, [dialog.key]: true } });
+                  notify("已记下提醒方式");
+                }
+                setDialog(null);
+              }}>{dialog.kind === "delete-member" ? "删除" : dialog.kind === "phone-use" ? "设置" : "清除"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

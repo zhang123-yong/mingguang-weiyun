@@ -21,6 +21,32 @@ export type Home = {
 export type DeviceLog = { id: string; text: string; time: string };
 export type LockUser = { id: string; name: string; method: string };
 export type TempCode = { id: string; code: string; expire: string };
+export type LockLinkItem = { id: string; name: string; desc: string; on: boolean };
+export type LockClip = { id: string; time: string };
+export type LockRemind = { center: boolean; sms: boolean; call: boolean };
+export type LockPanelState = {
+  remoteUnlock: boolean;
+  voiceOn: boolean;
+  voicePin: string;
+  wrist: boolean;
+  phoneService: boolean;
+  dnd: boolean;
+  notifyLock: boolean;
+  notifyCall: boolean;
+  aiNotify: boolean;
+  clarity: string;
+  links: LockLinkItem[];
+  admin: string;
+  night: boolean;
+  wdr: boolean;
+  muted: boolean;
+  recording: boolean;
+  album: LockClip[];
+  tempPass: string;
+  tempHours: number;
+  remind: LockRemind;
+  boundPhone: string;
+};
 
 export type Device = {
   id: string;
@@ -42,6 +68,7 @@ export type Device = {
   shares: string[];
   lockUsers: LockUser[];
   tempCodes: TempCode[];
+  lock?: LockPanelState;
 };
 
 export type SceneAction =
@@ -146,6 +173,48 @@ export const PRODUCTS: Product[] = [
 export const ROOM_PRESETS = ["客厅", "主卧", "次卧", "书房", "餐厅", "厨房", "门口", "阳台"];
 
 export const VOICES = ["温柔", "活泼", "沉稳"];
+
+export function defaultLockPanel(): LockPanelState {
+  return {
+    remoteUnlock: true,
+    voiceOn: false,
+    voicePin: "",
+    wrist: false,
+    phoneService: false,
+    dnd: false,
+    notifyLock: true,
+    notifyCall: false,
+    aiNotify: true,
+    clarity: "高清",
+    links: [
+      { id: "home", name: "家人回家", desc: "家人回家时，触发联动", on: false },
+      { id: "alarm", name: "门锁告警", desc: "门锁异常告警时，触发联动", on: false },
+      { id: "bell", name: "有人按门铃", desc: "有人按门铃，电话短信通知", on: false },
+    ],
+    admin: "我",
+    night: true,
+    wdr: false,
+    muted: false,
+    recording: false,
+    album: [],
+    tempPass: "",
+    tempHours: 2,
+    remind: { center: true, sms: false, call: false },
+    boundPhone: "",
+  };
+}
+
+export function lockPanelOf(lock?: LockPanelState): LockPanelState {
+  const base = defaultLockPanel();
+  if (!lock) return base;
+  return {
+    ...base,
+    ...lock,
+    links: lock.links?.length ? lock.links : base.links,
+    remind: { ...base.remind, ...lock.remind },
+    album: lock.album ?? [],
+  };
+}
 
 export function rid() {
   return Math.random().toString(36).slice(2, 10);

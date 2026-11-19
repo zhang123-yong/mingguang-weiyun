@@ -10,6 +10,7 @@ import {
 import {
   actionText,
   createSeed,
+  defaultLockPanel,
   nowLabel,
   productOf,
   rid,
@@ -242,6 +243,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             ? [{ id: rid(), name: "管理员", method: "指纹" }]
             : [],
         tempCodes: [],
+        lock: product.category === "lock" ? defaultLockPanel() : undefined,
         logs:
           product.category === "lock"
             ? [
