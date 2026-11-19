@@ -33,6 +33,7 @@ export type LockPanelState = {
   voiceOn: boolean;
   voicePin: string;
   wrist: boolean;
+  gesture: string;
   phoneService: boolean;
   dnd: boolean;
   notifyLock: boolean;
@@ -186,6 +187,7 @@ export function defaultLockPanel(): LockPanelState {
     voiceOn: false,
     voicePin: "",
     wrist: false,
+    gesture: "",
     phoneService: false,
     dnd: false,
     notifyLock: true,

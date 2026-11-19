@@ -69,6 +69,8 @@ type Page =
   | { id: "services" }
   | { id: "redeem" }
   | { id: "voice" }
+  | { id: "gesture"; mode: "set" | "off" }
+  | { id: "verify" }
   | { id: "camera" }
   | { id: "talk" }
   | { id: "editor" }
@@ -126,6 +128,10 @@ export function LockPanel({ device }: { device: Device }) {
   const [linkThen, setLinkThen] = useState("");
   const [linkName, setLinkName] = useState("");
   const [phone, setPhone] = useState(panel.boundPhone);
+  const [gestureStep, setGestureStep] = useState<"draw" | "confirm">("draw");
+  const [gestureFirst, setGestureFirst] = useState("");
+  const [mailCode, setMailCode] = useState("");
+  const [mailInput, setMailInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [talking, setTalking] = useState(false);
@@ -236,6 +242,13 @@ export function LockPanel({ device }: { device: Device }) {
   }, [talking]);
 
   useEffect(() => {
+    if (page.id !== "verify") return;
+    issueMailCode(data.user?.phone || panel.boundPhone);
+    // Only send when this page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id]);
+
+  useEffect(() => {
     if (page.id !== "live" || connecting) return;
     const tick = () => setStamp(shanghaiClock());
     tick();
@@ -314,6 +327,17 @@ export function LockPanel({ device }: { device: Device }) {
       return;
     }
     saveClip("video");
+  }
+
+  function issueMailCode(account: string) {
+    if (!account) {
+      setMailCode("");
+      notify("账号为空");
+      return;
+    }
+    const next = String(100000 + Math.floor(Math.random() * 900000));
+    setMailCode(next);
+    notify(`验证码 ${next}，演示不会发送真实邮件`);
   }
 
   function toggleTalk() {
@@ -410,7 +434,7 @@ export function LockPanel({ device }: { device: Device }) {
 
   return (
     <div className="relative flex h-full flex-col bg-[#F7F8FA] text-[#222]">
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className={`min-h-0 flex-1 ${page.id === "gesture" || page.id === "verify" ? "overflow-hidden" : "overflow-y-auto"}`}>
         {page.id === "home" ? (
           <section className="min-h-full bg-[#F3F4F6]">
             <header className="relative flex h-12 items-center justify-center px-12">
@@ -863,7 +887,7 @@ export function LockPanel({ device }: { device: Device }) {
             <div className="mx-4 rounded-2xl bg-white px-4">
               <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>远程开锁</span><Toggle label="远程开锁" on={panel.remoteUnlock} onClick={() => save({ ...panel, remoteUnlock: !panel.remoteUnlock })} /></div>
               <button type="button" onClick={() => { setAccessDraft(panel.unlockAccess); setAccessOpen(true); }} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">权限设置<span className="text-[13px] text-[#8e8e93]">{ACCESS_OPTIONS.find((item) => item.id === panel.unlockAccess)?.label} ›</span></button>
-              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3">
+              <div className="flex items-center justify-between py-3">
                 <span>语音密码<small className="block text-[12px] text-[#8e8e93]">语音音箱喊密码开门需要验证此密码</small></span>
                 <Toggle label="语音密码" on={panel.voiceOn} onClick={() => {
                   if (!panel.voiceOn) { setVoice(""); setVoice2(""); open({ id: "voice" }); return; }
@@ -871,9 +895,102 @@ export function LockPanel({ device }: { device: Device }) {
                   notify("已关闭语音密码");
                 }} />
               </div>
-              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3"><span>手势密码</span><Toggle label="手势密码" on={panel.wrist} onClick={() => save({ ...panel, wrist: !panel.wrist })} /></div>
-              <div className="flex items-center justify-between py-3"><span>门铃按键电话通知服务</span><Toggle label="门铃电话通知" on={panel.phoneService} onClick={() => save({ ...panel, phoneService: !panel.phoneService })} /></div>
             </div>
+            <p className="px-5 pt-4 text-[13px] text-[#8e8e93]">其他</p>
+            <div className="mx-4 rounded-2xl bg-white px-4">
+              <div className="flex items-center justify-between border-b border-[#f2f3f5] py-3">
+                <span>手势密码</span>
+                <Toggle label="手势密码" on={panel.wrist} onClick={() => {
+                  if (!panel.wrist || !panel.gesture) {
+                    setGestureStep("draw");
+                    setGestureFirst("");
+                    open({ id: "gesture", mode: "set" });
+                    return;
+                  }
+                  open({ id: "gesture", mode: "off" });
+                }} />
+              </div>
+              {panel.wrist && panel.gesture ? (
+                <button type="button" onClick={() => { setGestureStep("draw"); setGestureFirst(""); open({ id: "gesture", mode: "set" }); }} className="flex w-full items-center justify-between border-b border-[#f2f3f5] py-4">
+                  修改手势密码<span className="text-[#C8C8C8]">›</span>
+                </button>
+              ) : null}
+              <div className="flex items-center justify-between py-3"><span>门铃短信电话通知服务</span><Toggle label="门铃短信电话通知" on={panel.phoneService} onClick={() => save({ ...panel, phoneService: !panel.phoneService })} /></div>
+            </div>
+          </section>
+        ) : null}
+
+        {page.id === "gesture" ? (
+          <section className="flex min-h-full touch-none flex-col bg-white">
+            <Bar title={page.mode === "off" ? "关闭手势密码" : "设置手势密码"} onBack={back} />
+            <p className="pt-10 text-center text-[16px]">
+              {page.mode === "off" ? "请输入手势密码" : gestureStep === "confirm" ? "请再次绘制解锁图案" : "请绘制解锁图案"}
+            </p>
+            <div className="mt-10">
+              <PatternPad onComplete={(code) => {
+                if (code.length < 4) {
+                  notify("至少连接 4 个点");
+                  return;
+                }
+                if (page.mode === "off") {
+                  if (code === panel.gesture) {
+                    save({ ...panel, wrist: false, gesture: "" });
+                    notify("已关闭手势密码");
+                    back();
+                  } else notify("手势密码错误");
+                  return;
+                }
+                if (gestureStep === "draw") {
+                  setGestureFirst(code);
+                  setGestureStep("confirm");
+                  return;
+                }
+                if (code !== gestureFirst) {
+                  setGestureStep("draw");
+                  setGestureFirst("");
+                  notify("两次图案不一致，请重新绘制");
+                  return;
+                }
+                save({ ...panel, wrist: true, gesture: code });
+                notify("手势密码已设置");
+                back();
+              }} />
+            </div>
+            <button type="button" className="mt-auto pb-10 text-center text-[15px] text-[#2F7BFF]" onClick={() => { setMailInput(""); open({ id: "verify" }); }}>忘记手势密码？</button>
+          </section>
+        ) : null}
+
+        {page.id === "verify" ? (
+          <section className="min-h-full bg-white">
+            <Bar title="身份验证" onBack={back} />
+            <p className="bg-[#F7F8FA] px-4 py-3 text-[14px] text-[#666]">已发送验证码至邮箱:{maskAccount(data.user?.phone || panel.boundPhone)}</p>
+            <div className="mx-4 flex h-12 items-center border-b border-[#E6E6E6]">
+              <span className="mr-3 h-5 w-0.5 bg-[#12c4a0]" />
+              <input value={mailInput} inputMode="numeric" maxLength={6} onChange={(event) => setMailInput(event.target.value.replace(/\D/g, ""))} placeholder="请输入手机验证码" className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#C8C8C8]" />
+              <button type="button" className="shrink-0 text-[14px] text-[#2F7BFF]" onClick={() => issueMailCode(data.user?.phone || panel.boundPhone)}>重新获取</button>
+            </div>
+            <button
+              type="button"
+              disabled={!mailInput}
+              className={`mx-4 mt-8 h-11 w-[calc(100%-2rem)] rounded-full text-white ${mailInput ? "bg-[#12c4a0]" : "bg-[#E4E4E4]"}`}
+              onClick={() => {
+                const account = data.user?.phone || panel.boundPhone;
+                if (!account) {
+                  notify("账号为空");
+                  return;
+                }
+                if (mailInput !== mailCode) {
+                  notify("验证码不正确");
+                  return;
+                }
+                save({ ...panel, wrist: false, gesture: "" });
+                setMailInput("");
+                notify("手势密码已关闭");
+                setStack((current) => current.filter((item) => item.id !== "gesture" && item.id !== "verify"));
+              }}
+            >
+              确认
+            </button>
           </section>
         ) : null}
 
@@ -1242,6 +1359,108 @@ export function LockPanel({ device }: { device: Device }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function maskAccount(account: string) {
+  if (account.length < 7) return account;
+  return `${account.slice(0, 3)}****${account.slice(-4)}`;
+}
+
+function PatternPad({ onComplete }: { onComplete: (code: string) => void }) {
+  const board = useRef<HTMLDivElement>(null);
+  const pathRef = useRef<number[]>([]);
+  const drawing = useRef(false);
+  const [path, setPath] = useState<number[]>([]);
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+
+  function spot(index: number, size: number) {
+    return { x: ((index % 3) + 0.5) * size / 3, y: (Math.floor(index / 3) + 0.5) * size / 3 };
+  }
+
+  function local(event: PointerEvent<HTMLDivElement>) {
+    const box = board.current?.getBoundingClientRect();
+    if (!box) return { x: 0, y: 0, size: 0 };
+    return { x: event.clientX - box.left, y: event.clientY - box.top, size: box.width };
+  }
+
+  function nearest(x: number, y: number, size: number) {
+    for (let index = 0; index < 9; index += 1) {
+      const dot = spot(index, size);
+      if ((x - dot.x) ** 2 + (y - dot.y) ** 2 < (size / 9) ** 2) return index;
+    }
+    return -1;
+  }
+
+  function pushDot(index: number) {
+    const current = pathRef.current;
+    if (index < 0 || current.includes(index)) return;
+    const last = current[current.length - 1];
+    if (last != null) {
+      const row = Math.floor(last / 3);
+      const col = last % 3;
+      const nextRow = Math.floor(index / 3);
+      const nextCol = index % 3;
+      if ((row + nextRow) % 2 === 0 && (col + nextCol) % 2 === 0) {
+        const middle = ((row + nextRow) / 2) * 3 + (col + nextCol) / 2;
+        if (!current.includes(middle)) current.push(middle);
+      }
+    }
+    current.push(index);
+    setPath([...current]);
+  }
+
+  function finish() {
+    drawing.current = false;
+    setCursor(null);
+    const code = pathRef.current.join("");
+    pathRef.current = [];
+    setPath([]);
+    if (code) onComplete(code);
+  }
+
+  const size = board.current?.clientWidth ?? 280;
+  return (
+    <div
+      ref={board}
+      data-pattern="true"
+      className="relative mx-auto aspect-square w-[280px] touch-none"
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        drawing.current = true;
+        const point = local(event);
+        pushDot(nearest(point.x, point.y, point.size));
+        setCursor(point);
+      }}
+      onPointerMove={(event) => {
+        if (!drawing.current) return;
+        event.preventDefault();
+        const point = local(event);
+        pushDot(nearest(point.x, point.y, point.size));
+        setCursor(point);
+      }}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+    >
+      <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden>
+        {path.slice(1).map((index, order) => {
+          const from = spot(path[order] ?? 0, size);
+          const to = spot(index, size);
+          return <line key={`${path[order]}-${index}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#12c4a0" strokeWidth="2" />;
+        })}
+        {cursor && path.length ? <line x1={spot(path[path.length - 1] ?? 0, size).x} y1={spot(path[path.length - 1] ?? 0, size).y} x2={cursor.x} y2={cursor.y} stroke="#12c4a0" strokeWidth="2" /> : null}
+      </svg>
+      <div className="grid h-full grid-cols-3">
+        {Array.from({ length: 9 }, (_, index) => (
+          <span key={index} className="grid place-items-center">
+            <span className={`grid size-14 place-items-center rounded-full border-2 ${path.includes(index) ? "border-[#12c4a0]" : "border-[#D5D5D5]"}`}>
+              {path.includes(index) ? <i className="size-3 rounded-full bg-[#12c4a0]" /> : null}
+            </span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
