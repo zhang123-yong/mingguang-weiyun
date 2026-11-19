@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Grid3x3,
-  Images,
   Info,
   List,
   Lock,
@@ -16,11 +15,9 @@ import {
   ToggleRight,
   UserRound,
   Video,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
-import { nowLabel, lockPanelOf, productOf, rid, type Device, type LockPanelState, type UnlockAccess } from "@/lib/model";
+import { lockPanelOf, productOf, rid, type Device, type LockPanelState, type UnlockAccess } from "@/lib/model";
 import { useNav } from "@/lib/nav";
 import { LockAlbum, lockPreviewText } from "@/components/screens/lock-album";
 
@@ -136,11 +133,6 @@ export function LockPanel({ device }: { device: Device }) {
   const [wifi, setWifi] = useState<WifiReading | null>(null);
   const [wifiOpen, setWifiOpen] = useState(false);
   const [wifiChecking, setWifiChecking] = useState(false);
-  const [speed, setSpeed] = useState<1 | 2 | 4>(1);
-  const [speedOpen, setSpeedOpen] = useState(false);
-  const [recordFrom, setRecordFrom] = useState<number | null>(null);
-  const [recordNow, setRecordNow] = useState(0);
-  const [shutter, setShutter] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
   const [accessDraft, setAccessDraft] = useState<UnlockAccess>("admin");
   const wifiBox = useRef<HTMLDivElement>(null);
@@ -168,12 +160,6 @@ export function LockPanel({ device }: { device: Device }) {
   }, []);
 
   useEffect(() => {
-    if (recordFrom === null) return;
-    const timer = window.setInterval(() => setRecordNow(Date.now()), 200);
-    return () => window.clearInterval(timer);
-  }, [recordFrom]);
-
-  useEffect(() => {
     if (!wifiOpen) return;
     const close = (event: Event) => {
       if (!wifiBox.current?.contains(event.target as Node)) setWifiOpen(false);
@@ -199,53 +185,16 @@ export function LockPanel({ device }: { device: Device }) {
   function open(next: Page) {
     if (next.id === "live") {
       setConnecting(true);
-      window.setTimeout(() => setConnecting(false), 1100);
+      window.setTimeout(() => setConnecting(false), 1600);
     }
     setDialog(null);
     setStack((current) => [...current, next]);
   }
 
   function back() {
-    if (page.id === "live" && recordFrom !== null && (Date.now() - recordFrom) / 1000 >= 1) {
-      saveClip("video");
-    } else if (recordFrom !== null) {
-      setRecordFrom(null);
-      save({ ...panel, recording: false });
-    }
     setDialog(null);
     if (stack.length > 1) setStack((current) => current.slice(0, -1));
     else pop();
-  }
-
-  function saveClip(kind: "shot" | "video") {
-    const album = [{ id: rid(), time: nowLabel(), kind }, ...panel.album].slice(0, 12);
-    setRecordFrom(null);
-    save({ ...panel, recording: false, album }, kind === "shot" ? "已截图" : "录像已保存至本地相册");
-    notify(kind === "shot" ? "已保存到相册" : "录像已保存至本地相册");
-  }
-
-  function shoot() {
-    setShutter(true);
-    window.setTimeout(() => setShutter(false), 160);
-    const album = [{ id: rid(), time: nowLabel(), kind: "shot" as const }, ...panel.album].slice(0, 12);
-    save({ ...panel, album, recording: recordFrom !== null }, "已截图");
-    notify("已保存到相册");
-  }
-
-  function toggleRecord() {
-    if (recordFrom === null) {
-      setRecordFrom(Date.now());
-      setRecordNow(Date.now());
-      save({ ...panel, recording: true });
-      notify("开始录像");
-      return;
-    }
-    const seconds = (Date.now() - recordFrom) / 1000;
-    if (seconds < 1) {
-      notify("至少录制 1 秒后才能停止");
-      return;
-    }
-    saveClip("video");
   }
 
   function holdProps(hint: string, fire: () => void) {
@@ -506,103 +455,50 @@ export function LockPanel({ device }: { device: Device }) {
         ) : null}
 
         {page.id === "live" ? (
-          <section className="flex min-h-full flex-col bg-black text-white">
+          <section className="flex min-h-full flex-col bg-[#3A3A3A] text-white">
             <div className="flex h-12 items-center px-2">
               <button type="button" aria-label="返回" onClick={back} className="grid size-10 place-items-center text-[28px]">‹</button>
-              <h1 className="flex-1 text-center text-[16px] font-medium">视频监控</h1>
-              <span className="w-10" />
             </div>
-            <div className="relative min-h-0 flex-1 overflow-hidden bg-[#12181f]">
-              <div className={`absolute inset-0 ${panel.clarity === "标清" ? "blur-[1.4px]" : ""}`}>
-                <div className="live-pan absolute inset-y-0 -left-[8%] w-[116%] bg-[radial-gradient(circle_at_50%_38%,#60788c,transparent_42%),linear-gradient(#314252,#141a20)]" style={{ animationDuration: `${6 / speed}s` }} />
-                <div className="absolute inset-x-[16%] top-[14%] bottom-[16%] rounded-[2px] border-[12px] border-[#16191d] bg-[#2a3846]/40" />
-              </div>
-              {recordFrom !== null ? (
-                <div className="absolute top-4 left-4 flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-[13px]">
-                  <i className="size-2 rounded-full bg-[#FF3B30]" />
-                  {recordClock(recordFrom, recordNow)}
+            {connecting ? (
+              <div className="grid flex-1 place-items-center pb-16">
+                <div className="text-center">
+                  <span className="mx-auto block size-8 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+                  <p className="mt-4 text-[15px] text-[#C8C8C8]">正在连接门锁</p>
                 </div>
-              ) : null}
-              {panel.muted ? <div className="absolute top-4 right-4 rounded-full bg-black/55 px-3 py-1 text-[12px]">静音</div> : null}
-              {shutter ? <div className="absolute inset-0 bg-white/75" /> : null}
-              {connecting ? <div className="absolute inset-0 grid place-items-center bg-black/55 text-[15px]">正在构建加密通道</div> : null}
-            </div>
-            <div className="grid grid-cols-6 items-end gap-1 px-2 pt-3 pb-5 text-center text-[11px]">
-              {(["高清", "标清"] as const).map((level) => {
-                const active = (panel.clarity === "标清" ? "标清" : "高清") === level;
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    aria-label={level}
-                    aria-pressed={active}
-                    onClick={() => save({ ...panel, clarity: level, recording: recordFrom !== null })}
-                    className="flex w-full flex-col items-center gap-1"
-                  >
-                    <span className={`grid h-9 min-w-11 place-items-center rounded-lg px-1 text-[13px] ${active ? "bg-white font-medium text-[#16181c]" : "bg-white/15 text-white/75"}`}>{level}</span>
-                    <span className="text-[11px] text-transparent">清晰</span>
-                  </button>
-                );
-              })}
-              <div className="relative">
-                <button
-                  type="button"
-                  aria-label="变速"
-                  aria-expanded={speedOpen}
-                  onClick={() => setSpeedOpen((open) => !open)}
-                  className="flex w-full flex-col items-center gap-1"
-                >
-                  <i className="grid size-9 place-items-center rounded-full bg-white/15 text-[13px] font-medium not-italic">{speed}×</i>
-                  变速
-                </button>
-                {speedOpen ? (
-                  <div className="absolute bottom-14 left-1/2 z-10 w-16 -translate-x-1/2 overflow-hidden rounded-xl bg-white text-[#222] shadow-lg">
-                    {([1, 2, 4] as const).map((rate) => (
-                      <button
-                        key={rate}
-                        type="button"
-                        aria-label={`${rate}倍速`}
-                        onClick={() => {
-                          setSpeed(rate);
-                          setSpeedOpen(false);
-                          notify(`已切换 ${rate}×`);
-                        }}
-                        className={`block h-9 w-full text-[13px] ${speed === rate ? "bg-[#E8F8F3] font-medium text-[#12987a]" : ""}`}
-                      >
-                        {rate}×
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
               </div>
-              <button
-                type="button"
-                aria-label="静音"
-                aria-pressed={panel.muted}
-                onClick={() => {
-                  save({ ...panel, muted: !panel.muted, recording: recordFrom !== null });
-                  notify(panel.muted ? "已打开声音" : "已静音");
-                }}
-                className="flex w-full flex-col items-center gap-1"
-              >
-                <i className={`grid size-9 place-items-center rounded-full not-italic ${panel.muted ? "bg-[#FF3B30] text-white" : "bg-white/15"}`}>
-                  {panel.muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-                </i>
-                静音
-              </button>
-              <button type="button" aria-label="截图" onClick={shoot} className="flex w-full flex-col items-center gap-1">
-                <i className="grid size-9 place-items-center rounded-full bg-white/15 not-italic">
-                  <Images className="size-4" />
-                </i>
-                相册
-              </button>
-              <button type="button" aria-label="录像" aria-pressed={recordFrom !== null} onClick={toggleRecord} className="flex w-full flex-col items-center gap-1">
-                <i className={`grid size-9 place-items-center rounded-full not-italic ${recordFrom !== null ? "bg-[#FF3B30] text-white" : "bg-white/15"}`}>
-                  <Video className="size-4" />
-                </i>
-                {recordFrom !== null ? recordClock(recordFrom, recordNow) : "录像"}
-              </button>
-            </div>
+            ) : (
+              <>
+                <div className="grid flex-1 place-items-center px-6">
+                  <div className="text-center text-[#C8C8C8]">
+                    <StreamMark />
+                    <p className="mt-3 text-[15px]">正在获取视频流</p>
+                  </div>
+                </div>
+                <div className="px-4 pb-6">
+                  <div className="rounded-[22px] bg-[#242424] px-4 py-6">
+                    <button
+                      type="button"
+                      aria-label={unlocked ? "长按上锁" : "长按开锁"}
+                      {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}
+                      className="mx-auto flex flex-col items-center"
+                    >
+                      <span className="relative grid size-[76px] place-items-center">
+                        {holding ? (
+                          <svg viewBox="0 0 76 76" className="absolute inset-0 size-full">
+                            <circle cx="38" cy="38" r="34" fill="none" stroke="#1a4f45" strokeWidth="3" />
+                            <circle cx="38" cy="38" r="34" fill="none" stroke="#20C6A4" strokeWidth="3" strokeLinecap="round" strokeDasharray="54 160" className="lock-ring-spin" />
+                          </svg>
+                        ) : null}
+                        <span className="grid size-16 place-items-center rounded-full bg-[#20C6A4] text-white">
+                          <Lock className="size-7" />
+                        </span>
+                      </span>
+                      <span className="mt-3 text-[14px] text-[#D5D5D5]">{unlocked ? "长按上锁" : "长按开锁"}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         ) : null}
 
@@ -1142,11 +1038,14 @@ export function LockPanel({ device }: { device: Device }) {
   );
 }
 
-function recordClock(from: number, now: number) {
-  const total = Math.max(0, Math.floor((now - from) / 1000));
-  const minutes = String(Math.floor(total / 60)).padStart(2, "0");
-  const seconds = String(total % 60).padStart(2, "0");
-  return `${minutes}:${seconds}`;
+function StreamMark() {
+  return (
+    <svg viewBox="0 0 48 48" className="mx-auto size-12" aria-hidden>
+      <path d="M18 16a8 8 0 0 1 12 0" fill="none" stroke="#C8C8C8" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M14 12a14 14 0 0 1 20 0" fill="none" stroke="#C8C8C8" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M17 24c1.2 2.4 3.2 4 7 4s5.8-1.6 7-4l3.2 1.6c.8.4 1.2 1.3.9 2.2l-1.4 4.2a2 2 0 0 1-1.9 1.4h-2.2l-1.6 5.2h-8l-1.6-5.2H16a2 2 0 0 1-1.9-1.4l-1.4-4.2a1.8 1.8 0 0 1 .9-2.2L17 24Z" fill="none" stroke="#C8C8C8" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function batteryFill(percent: number) {
