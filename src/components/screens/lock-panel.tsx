@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   BatteryMedium,
   Bell,
@@ -33,7 +33,7 @@ const FAQS: [string, string][] = [
 const MENU: { label: string; id: "live" | "ai" | "members" | "temp" | "link" | "settings"; icon: ReactNode }[] = [
   { label: "视频监控", id: "live", icon: <Video className="size-5" /> },
   { label: "AI", id: "ai", icon: <span className="text-[13px] font-semibold">AI</span> },
-  { label: "家庭成员", id: "members", icon: <UserRound className="size-5" /> },
+  { label: "成员管理", id: "members", icon: <UserRound className="size-5" /> },
   { label: "临时密码", id: "temp", icon: <Grid3x3 className="size-5" /> },
   { label: "智能联动", id: "link", icon: <ToggleRight className="size-5" /> },
   { label: "设置", id: "settings", icon: <Settings className="size-5" /> },
@@ -150,13 +150,11 @@ function MemberDetail({
   );
 }
 
-export function LockPanel({ device, start }: { device: Device; start?: "members" }) {
+export function LockPanel({ device }: { device: Device }) {
   const { data, patchDevice, pushLog, addLockUser, removeDevice } = useApp();
   const { pop, notify } = useNav();
   const panel = lockPanelOf(device.lock);
-  const [stack, setStack] = useState<Page[]>(start === "members" ? [{ id: "members" }] : [{ id: "home" }]);
-  const [addName, setAddName] = useState("");
-  const [addRole, setAddRole] = useState<"管理员" | "家人">("家人");
+  const [stack, setStack] = useState<Page[]>([{ id: "home" }]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [query, setQuery] = useState("");
   const [aiTab, setAiTab] = useState<"voice" | "vision" | "more">("voice");
@@ -178,13 +176,14 @@ export function LockPanel({ device, start }: { device: Device; start?: "members"
   const [removeAsk, setRemoveAsk] = useState(false);
   const [noticeSheet, setNoticeSheet] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addRole, setAddRole] = useState<"管理员" | "家人">("家人");
   const frame = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean; key: string; axis: "x" | "y" | null } | null>(null);
   const offset = useRef(0);
   const page = stack[stack.length - 1] ?? { id: "home" as const };
   const hold = useRef<number | null>(null);
   const fired = useRef(false);
-  const [holding, setHolding] = useState(false);
 
   function save(next: LockPanelState, log?: string) {
     patchDevice(device.id, { lock: next });
@@ -207,33 +206,6 @@ export function LockPanel({ device, start }: { device: Device; start?: "members"
     else pop();
   }
 
-  function holdProps(hint: string, fire: () => void) {
-    function stop() {
-      if (hold.current) window.clearTimeout(hold.current);
-      setHolding(false);
-    }
-    return {
-      onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        fired.current = false;
-        setHolding(true);
-        if (hold.current) window.clearTimeout(hold.current);
-        hold.current = window.setTimeout(() => {
-          fired.current = true;
-          setHolding(false);
-          fire();
-        }, 1000);
-      },
-      onPointerUp: () => {
-        const done = fired.current;
-        stop();
-        if (!done) notify(hint);
-      },
-      onPointerCancel: stop,
-      onContextMenu: (event: MouseEvent) => event.preventDefault(),
-    };
-  }
-
   function credentialsOf(memberId: string) {
     const ownerId = panel.family[0]?.id;
     return device.lockUsers.filter((user) => user.memberId === memberId || (!user.memberId && memberId === ownerId));
@@ -245,15 +217,34 @@ export function LockPanel({ device, start }: { device: Device; start?: "members"
     open({ id: "member-add" });
   }
 
-  function toggleLock() {
-    if (device.locked && !panel.remoteUnlock) {
+  function holdProps(hint: string, fire: () => void) {
+    return {
+      onPointerDown: () => {
+        fired.current = false;
+        if (hold.current) window.clearTimeout(hold.current);
+        hold.current = window.setTimeout(() => {
+          fired.current = true;
+          fire();
+        }, 650);
+      },
+      onPointerUp: () => {
+        if (hold.current) window.clearTimeout(hold.current);
+        if (!fired.current) notify(hint);
+      },
+      onPointerCancel: () => {
+        if (hold.current) window.clearTimeout(hold.current);
+      },
+    };
+  }
+
+  function unlock() {
+    if (!panel.remoteUnlock) {
       notify("远程开锁已关闭");
       return;
     }
-    const nextLocked = !device.locked;
-    patchDevice(device.id, { locked: nextLocked });
-    pushLog(device.id, nextLocked ? "长按上锁" : "长按开锁");
-    notify(nextLocked ? "已上锁" : "已开锁");
+    patchDevice(device.id, { locked: false });
+    pushLog(device.id, "长按开锁");
+    notify("已开锁");
   }
 
   const unlocked = !device.locked;
@@ -318,28 +309,14 @@ export function LockPanel({ device, start }: { device: Device; start?: "members"
             </div>
             <button
               type="button"
-              aria-label={unlocked ? "长按上锁" : "长按开锁"}
-              {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}
-              className="mx-auto mt-4 grid size-[210px] select-none place-items-center"
+              aria-label="长按开锁"
+              {...holdProps("请长按开锁", unlock)}
+              className="mx-auto mt-4 grid size-[210px] place-items-center"
             >
               <span className="relative grid size-[210px] place-items-center">
                 <svg viewBox="0 0 100 100" className="absolute inset-0 size-full">
                   <circle cx="50" cy="50" r="40" fill="none" stroke="#D9F6EF" strokeWidth="9" />
-                  {holding ? (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="none"
-                      stroke="#20C6A4"
-                      strokeWidth="9"
-                      strokeLinecap="round"
-                      strokeDasharray="78 174"
-                      className="lock-ring-spin"
-                    />
-                  ) : (
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
-                  )}
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#20C6A4" strokeWidth="9" />
                 </svg>
                 <span className="grid size-[132px] place-items-center rounded-full bg-white text-[#20C6A4]">
                   <Lock className="size-8" />
@@ -441,33 +418,6 @@ export function LockPanel({ device, start }: { device: Device; start?: "members"
                 ))}
               </div>
             </div>
-            <div className="mx-4 mt-3 rounded-2xl bg-white px-4 py-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[16px] font-medium">家庭成员</span>
-                <button type="button" onClick={() => open({ id: "members" })} className="text-[13px] text-[#8A8F98]">
-                  全部
-                </button>
-              </div>
-              <div className="mt-3 flex gap-4 overflow-x-auto pb-1">
-                {panel.family.map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => open({ id: "member", memberId: member.id })}
-                    className="flex w-14 shrink-0 flex-col items-center gap-1"
-                  >
-                    <span className="grid size-12 place-items-center rounded-full bg-[#E8FBF3] text-[16px] font-medium text-[#12A37A]">
-                      {member.name.slice(0, 1)}
-                    </span>
-                    <span className="w-full truncate text-center text-[12px]">{member.name}</span>
-                  </button>
-                ))}
-                <button type="button" onClick={openAddMember} className="flex w-14 shrink-0 flex-col items-center gap-1">
-                  <span className="grid size-12 place-items-center rounded-full border border-dashed border-[#C9CDD4] text-[22px] text-[#8A8F98]">+</span>
-                  <span className="text-[12px] text-[#8A8F98]">添加</span>
-                </button>
-              </div>
-            </div>
             <div className="mx-4 mt-3 overflow-hidden rounded-2xl bg-white">
               {MENU.map((row) => (
                 <button key={row.label} type="button" onClick={() => open({ id: row.id })} className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
@@ -516,7 +466,7 @@ export function LockPanel({ device, start }: { device: Device; start?: "members"
                 <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">册</i>
                 相册
               </button>
-              <button type="button" {...holdProps(unlocked ? "请长按上锁" : "请长按开锁", toggleLock)}>
+              <button type="button" {...holdProps("请长按开锁", unlock)}>
                 <i className="mx-auto grid size-10 place-items-center rounded-full bg-white/15 not-italic">锁</i>
                 {unlocked ? "已开锁" : "长按开锁"}
               </button>

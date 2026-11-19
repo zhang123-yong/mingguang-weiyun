@@ -12,7 +12,7 @@ export type Route =
   | { name: "tabs" }
   | { name: "add" }
   | { name: "pair"; productId: string }
-  | { name: "device"; id: string; focus?: "members" }
+  | { name: "device"; id: string }
   | { name: "device-settings"; id: string }
   | { name: "device-info"; id: string }
   | { name: "device-share"; id: string }
